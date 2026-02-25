@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aspero — Find Your Bond</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    @font-face {
+      font-family: 'Sofia Pro';
+      src: local('Sofia Pro'), local('SofiaPro');
+      /* Commercial font — falls back to Inter if not installed locally */
+    }
+  </style>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      /* ── Aspero Phoenix design tokens ──────────────────────────────────────── */
+      --g:      #018E43;   /* Brand Green / Primary CTA default */
+      --g-hov:  #01B756;   /* CTA hover */
+      --g-act:  #016530;   /* CTA active/pressed */
+      --g-dis:  #A8F8D5;   /* CTA disabled */
+      --g-hi:   #01D464;   /* Special/O500 — highlight brand green */
+      --g-dk:   #1A3C34;   /* Dark green hero surface */
+      --g-dkr:  #0D1F16;   /* Darkest green hero surface */
+      --g-mid:  #152D1E;
+      --g-lt:   #C9FFEA;   /* SpecialWeak_O100 — light green tint */
+      --g-lt2:  #ECFDF5;   /* Extra-light green tint for older references */
+      --bg:     #F2F4F7;   /* BG2_Light_N200 screen background */
+      --card:   #FFFFFF;   /* BG1_Light_BW50 */
+      --t1:     #101828;   /* H1_N900 / BT1_N900 primary text */
+      --t2:     #667085;   /* BT3_N500 secondary text */
+      --t3:     #98A2B3;   /* BT4_N400 muted text */
+      --border: #D0D5DD;   /* Tertiary_N300 border */
+      --sh:     0 4px 20px rgba(0,0,0,.07);
+      --sh-lg:  0 16px 56px rgba(0,0,0,.14);
+    }
+    html { font-family: 'Sofia Pro', 'Inter', sans-serif; scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--t1); padding-bottom: 88px; }
+    button { cursor: pointer; border: none; font-family: inherit; background: none; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ── Nav ── */
+    .nav {
+      position: sticky; top: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 62px;
+      background: var(--g-dkr); border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+    .logo { font-size: 21px; font-weight: 800; color: #fff; letter-spacing: -.5px; }
+    .logo em { color: var(--g-hi); font-style: normal; }
+    .nav-right { display: flex; align-items: center; gap: 14px; }
+    .nav-user { font-size: 13px; color: rgba(255,255,255,.55); }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(155deg, var(--g-dkr) 0%, #0f2a1c 45%, var(--g-dk) 100%);
+      padding: 52px 32px 64px; position: relative; overflow: visible;
+    }
+    .hero::before {
+      content: ''; position: absolute; top: -100px; right: -100px;
+      width: 500px; height: 500px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(1,212,100,.07) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero::after {
+      content: ''; position: absolute; bottom: -60px; left: 10%;
+      width: 300px; height: 300px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(1,142,67,.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-inner { max-width: 900px; margin: 0 auto; position: relative; }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 7px; margin-bottom: 18px;
+      padding: 6px 14px; background: rgba(1,212,100,.1);
+      border: 1px solid rgba(1,212,100,.2); border-radius: 100px;
+      font-size: 12px; font-weight: 600; color: var(--g-hi); letter-spacing: .3px;
+    }
+    .hero-h1 {
+      font-size: 42px; font-weight: 800; color: #fff;
+      letter-spacing: -1.2px; line-height: 1.12; margin-bottom: 14px;
+    }
+    .hero-h1 span { color: var(--g-hi); }
+    .hero-sub { font-size: 16px; color: rgba(255,255,255,.5); margin-bottom: 44px; max-width: 480px; line-height: 1.6; }
+
+    /* ── Widget ── */
+    .widget-outer { max-width: 900px; margin: 0 auto; position: relative; z-index: 10; }
+    .widget {
+      background: var(--card); border-radius: 24px;
+      box-shadow: var(--sh-lg); overflow: hidden;
+      margin-bottom: -56px; position: relative;
+    }
+    .widget-body { padding: 36px 36px 36px; }
+
+    .field-label {
+      font-size: 11px; font-weight: 700; color: var(--t2);
+      text-transform: uppercase; letter-spacing: .7px; margin-bottom: 14px;
+    }
+    .field-group { margin-bottom: 30px; }
+    .field-group:last-child { margin-bottom: 0; }
+
+    /* ── Amount ── */
+    .amt-row { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 22px; }
+    .amt-val { font-size: 44px; font-weight: 800; color: var(--t1); letter-spacing: -1.5px; line-height: 1; }
+    .amt-val sup { font-size: 22px; font-weight: 700; vertical-align: super; letter-spacing: 0; }
+    .amt-hint { font-size: 12px; color: var(--t2); padding-bottom: 4px; }
+
+    /* ── Slider ── */
+    .slider-wrap { position: relative; margin-bottom: 10px; }
+    .slider-track { height: 8px; background: #E9EBE9; border-radius: 4px; position: relative; }
+    .slider-progress {
+      position: absolute; left: 0; top: 0; height: 100%;
+      background: linear-gradient(90deg, var(--g) 0%, var(--g-hi) 100%);
+      border-radius: 4px; pointer-events: none; transition: width .04s linear;
+    }
+    input[type=range].range-slider {
+      position: absolute; top: 50%; left: 0; transform: translateY(-50%);
+      width: 100%; margin: 0; padding: 0;
+      -webkit-appearance: none; appearance: none;
+      background: transparent; cursor: pointer; height: 24px;
+    }
+    input[type=range].range-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: #fff; border: 3px solid var(--g);
+      box-shadow: 0 2px 10px rgba(1,142,67,.4);
+      transition: transform .12s, box-shadow .12s;
+    }
+    input[type=range].range-slider:hover::-webkit-slider-thumb,
+    input[type=range].range-slider:active::-webkit-slider-thumb {
+      transform: scale(1.2); box-shadow: 0 4px 18px rgba(1,142,67,.55);
+    }
+    input[type=range].range-slider::-moz-range-thumb {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: #fff; border: 3px solid var(--g);
+      box-shadow: 0 2px 10px rgba(1,142,67,.4);
+    }
+    .slider-markers {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: #9CA3AF; font-weight: 500; margin-top: 10px; padding: 0 2px;
+    }
+
+    /* ── Quick amount chips ── */
+    .quick-amts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .qa-chip {
+      padding: 7px 16px; border-radius: 100px; font-size: 12px; font-weight: 600;
+      background: #F3F4F6; color: var(--t2);
+      border: 1.5px solid transparent; transition: all .13s; cursor: pointer;
+    }
+    .qa-chip:hover { background: var(--g-lt); color: var(--g); border-color: #A7F3C9; }
+    .qa-chip.active { background: var(--g-lt); color: var(--g); border-color: #6EE7A0; }
+
+    /* ── Dual grid ── */
+    .dual-field { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 30px; }
+
+    /* ── Pills ── */
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill-btn {
+      padding: 9px 18px; border-radius: 100px; font-size: 13px; font-weight: 600;
+      background: #FAFAFA; color: var(--t1);
+      border: 1.5px solid transparent; transition: all .13s;
+    }
+    .pill-btn:hover { background: var(--g-lt); color: var(--g); border-color: #A7F3C9; }
+    .pill-btn.active {
+      background: var(--g-lt); color: var(--g);
+      border-color: #6EE7A0; box-shadow: 0 4px 14px rgba(1,142,67,.14);
+    }
+
+    /* ── Risk cards ── */
+    .risk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .risk-card {
+      padding: 18px 14px; border-radius: 16px;
+      border: 1px solid rgba(229,231,235,0.6); background: #FAFAFA;
+      text-align: center; cursor: pointer; transition: all .15s;
+    }
+    .risk-card:hover { border-color: #A7F3C9; background: #F7FEFF; }
+    .risk-card.active {
+      border-color: var(--g); background: var(--g-lt);
+      box-shadow: 0 4px 18px rgba(1,142,67,.14);
+    }
+    .risk-icon { font-size: 28px; margin-bottom: 8px; display: block; }
+    .risk-name { font-size: 13px; font-weight: 700; color: var(--t1); margin-bottom: 4px; }
+    .risk-desc { font-size: 11px; color: var(--t2); line-height: 1.5; }
+    .risk-ret {
+      display: inline-block; margin-top: 7px;
+      font-size: 12px; font-weight: 700; color: var(--g);
+      background: var(--g-lt); border-radius: 6px; padding: 3px 9px;
+      letter-spacing: .1px;
+    }
+    .risk-card.active .risk-ret { background: rgba(1,142,67,.22); }
+
+    /* ── Field highlight pulse ── */
+    @keyframes fieldPulse {
+      0%   { box-shadow: none; }
+      25%  { box-shadow: 0 0 0 4px rgba(251,191,36,.35); }
+      50%  { box-shadow: none; }
+      75%  { box-shadow: 0 0 0 4px rgba(251,191,36,.2); }
+      100% { box-shadow: none; }
+    }
+    .field-highlight {
+      border-radius: 14px;
+      animation: fieldPulse 1.6s ease-out forwards;
+    }
+
+    /* ── Floating CTA ── */
+    .floating-cta {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 400;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; padding: 16px 32px 24px;
+      background: var(--g-dkr);
+      border-top: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 -8px 32px rgba(0,0,0,.3);
+    }
+    .floating-cta-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .cta-primary   { font-size: 15px; font-weight: 700; color: rgba(255,255,255,.35); line-height: 1.3; }
+    .cta-secondary { font-size: 12px; color: rgba(255,255,255,.3); }
+    .cta-primary.active   { color: #fff; }
+    .cta-secondary.active { color: rgba(255,255,255,.45); }
+    .cta-primary em { color: var(--g-hi); font-style: normal; }
+
+    /* CTA button states */
+    .show-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 28px; border-radius: 6px;  /* Always 6px per Phoenix */
+      font-size: 14px; font-weight: 700; white-space: nowrap;
+      transition: all .18s;
+    }
+    .show-btn.active {
+      background: var(--g); color: #fff;
+      box-shadow: 0 4px 18px rgba(1,142,67,.45);
+    }
+    .show-btn.active:hover { background: var(--g-hov); transform: translateY(-1px); }
+    .show-btn.locked {
+      background: rgba(255,255,255,.08); color: rgba(255,255,255,.3);
+      cursor: not-allowed; box-shadow: none;
+      border: 1px solid rgba(255,255,255,.1);
+    }
+
+    /* ── Hint toast (above CTA) ── */
+    .cta-toast {
+      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(8px);
+      z-index: 401; background: #1F2937; color: #fff;
+      padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+      opacity: 0; pointer-events: none;
+      transition: opacity .22s ease, transform .22s ease;
+      white-space: nowrap;
+    }
+    .cta-toast.show {
+      opacity: 1; transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Bond cards ── */
+    .bonds-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .bond-card {
+      background: var(--card); border-radius: 20px;
+      border: 1.5px solid var(--border); box-shadow: var(--sh);
+      padding: 22px; display: flex; flex-direction: column;
+      transition: all .18s; position: relative; overflow: hidden;
+    }
+    .bond-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--g), var(--g-hi));
+      opacity: 0; transition: opacity .18s;
+    }
+    .bond-card:hover { border-color: #A7F3C9; transform: translateY(-3px); box-shadow: 0 12px 40px rgba(1,142,67,.12); }
+    .bond-card:hover::before { opacity: 1; }
+    .bond-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+    .bond-abbr {
+      width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+      background: var(--g-lt); color: var(--g);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 800;
+    }
+    .match-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 700;
+    }
+    .mb-great { background: #BBFFD4; color: #14532D; }
+    .mb-good  { background: #FEF9C3; color: #78350F; }
+    .mb-fair  { background: #F3F4F6; color: #4B5563; }
+    .bond-name { font-size: 15px; font-weight: 700; color: var(--t1); margin-bottom: 2px; line-height: 1.3; }
+    .bond-cat  { font-size: 12px; color: var(--t2); margin-bottom: 16px; }
+    .bond-yield { font-size: 32px; font-weight: 800; color: var(--g); letter-spacing: -.8px; line-height: 1; margin-bottom: 2px; }
+    .bond-yield-lbl { font-size: 12px; color: var(--t2); margin-bottom: 16px; }
+    .bond-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .bm-lbl { font-size: 10px; font-weight: 600; color: var(--t2); text-transform: uppercase; letter-spacing: .4px; }
+    .bm-val { font-size: 13px; font-weight: 700; color: var(--t1); margin-top: 3px; }
+    .rating-badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+    .r-AAA { background: #D1FAE5; color: #065F46; }
+    .r-AAp { background: #DBEAFE; color: #1E40AF; }
+    .r-AA  { background: #EDE9FE; color: #5B21B6; }
+    .r-AAm { background: #FEF3C7; color: #92400E; }
+    .r-Ap  { background: #FFEDD5; color: #C2410C; }
+    .r-A   { background: #FEE2E2; color: #991B1B; }
+    .r-Am  { background: #FCE7F3; color: #9D174D; }
+    .r-BBB { background: #F3F4F6; color: #374151; }
+    .bond-earnings {
+      background: linear-gradient(135deg, #E6FFF3, var(--g-lt));  /* SpecialWeak_O100 tint */
+      border: 1px solid rgba(1,212,100,.25); border-radius: 12px;
+      padding: 11px 14px; margin-bottom: 14px;
+      position: relative; overflow: hidden;
+    }
+    @keyframes updatedBadgePop {
+      0%   { opacity: 0; transform: translateY(-50%) scale(.75); }
+      18%  { opacity: 1; transform: translateY(-50%) scale(1.05); }
+      28%  { transform: translateY(-50%) scale(1); }
+      70%  { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-50%) scale(.95); }
+    }
+    .earnings-updated-badge {
+      position: absolute; right: 14px; top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 100px;
+      background: #018E43; color: #fff;
+      font-size: 11px; font-weight: 700; letter-spacing: .2px;
+      pointer-events: none;
+      animation: updatedBadgePop 1.4s ease-out forwards;
+    }
+    .be-lbl { font-size: 11px; color: #018E43; font-weight: 600; }
+    .be-val { font-size: 17px; font-weight: 800; color: #018E43; margin-top: 2px; }
+    .invest-btn {
+      width: 100%; padding: 13px; border-radius: 6px;  /* Always 6px per Phoenix */
+      background: var(--g); color: #fff; font-size: 13px; font-weight: 700;
+      border: 1px solid var(--g);
+      transition: all .15s; margin-top: auto;
+      box-shadow: 0 4px 14px rgba(1,142,67,.25);
+    }
+    .invest-btn:hover { background: var(--g-hov); border-color: var(--g-hov); transform: translateY(-1px); }
+
+    /* ── Empty state ── */
+    .empty { grid-column: 1 / -1; text-align: center; padding: 72px 24px; }
+    .empty-icon { font-size: 52px; margin-bottom: 16px; }
+    .empty-h { font-size: 20px; font-weight: 700; color: var(--t1); margin-bottom: 8px; }
+    .empty-sub { font-size: 14px; color: var(--t2); max-width: 340px; margin: 0 auto; line-height: 1.6; }
+
+    /* ── Earnings bar ── */
+
+
+    /* ── Results sticky subheader ── */
+    .results-subhdr {
+      position: sticky; top: 62px; z-index: 9;
+      background: var(--bg); border-bottom: 1px solid var(--border);
+      padding: 14px 32px 12px;
+    }
+    .results-subhdr-inner { max-width: 900px; margin: 0 auto; }
+
+    /* ── Results bar ── */
+    .results-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px; flex-wrap: wrap; gap: 12px;
+    }
+    .results-title-row { display: flex; align-items: center; gap: 12px; }
+    .results-title { font-size: 22px; font-weight: 800; color: var(--t1); }
+    .count-pill {
+      display: inline-flex; align-items: center;
+      padding: 4px 12px; border-radius: 100px;
+      background: var(--g-lt); color: var(--g); font-size: 13px; font-weight: 700;
+    }
+    .sort-select {
+      font-family: inherit; font-size: 13px; font-weight: 600; color: var(--t1);
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 8px 12px; background: var(--card); cursor: pointer; outline: none;
+    }
+    .sort-select:focus { border-color: var(--g); }
+
+    /* Filter chips */
+    .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 0; }
+    .filter-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 13px; border-radius: 100px; font-size: 12px; font-weight: 600;
+      background: var(--g-dkr); color: rgba(255,255,255,.75);
+    }
+
+    /* ── Editable amount chip ── */
+    .filter-chip-editable {
+      cursor: pointer; transition: opacity .15s;
+    }
+    .filter-chip-editable:hover { opacity: .8; }
+    .chip-edit-icon { font-size: 11px; opacity: .9; margin-left: 3px; }
+
+    /* ── Amount bottom sheet ── */
+    .sheet-overlay {
+      display: none; position: fixed; inset: 0; z-index: 700;
+      background: rgba(0,0,0,.45);
+    }
+    .sheet-overlay.show { display: block; }
+    .amt-sheet {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 701;
+      background: #fff; border-radius: 24px 24px 0 0;
+      padding-bottom: 40px;
+      transform: translateY(100%); transition: transform .32s cubic-bezier(.4,0,.2,1);
+    }
+    .amt-sheet.show { transform: translateY(0); }
+    .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 14px auto 0; }
+    .sheet-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px 4px;
+    }
+    .sheet-title { font-size: 15px; font-weight: 700; color: var(--t1); }
+    .sheet-close {
+      font-size: 20px; line-height: 1; cursor: pointer;
+      color: var(--t2); background: none; border: none; padding: 4px 6px;
+    }
+    .sheet-body { padding: 12px 24px max(24px, env(safe-area-inset-bottom, 24px)); }
+    .sheet-cta {
+      display: block; width: 100%; margin: 20px 0 0;
+      padding: 15px; border: 1px solid var(--g); border-radius: 6px;  /* Always 6px per Phoenix */
+      background: var(--g); color: #fff;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .sheet-cta:hover { background: var(--g-hov); border-color: var(--g-hov); }
+    .sheet-amt-val {
+      font-size: 34px; font-weight: 800; color: var(--t1);
+      margin-bottom: 16px; letter-spacing: -.5px;
+    }
+    .sheet-amt-val sup { font-size: 16px; font-weight: 600; vertical-align: super; margin-right: 2px; }
+    .sheet-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+    /* ── View All row ── */
+    .view-all-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 20px; padding: 18px 22px; border-radius: 16px;
+      background: var(--card); border: 1.5px solid var(--border); box-shadow: var(--sh);
+    }
+    .view-all-lbl { font-size: 14px; color: var(--t2); }
+    .view-all-lbl strong { color: var(--t1); font-size: 15px; }
+    .view-all-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px; border-radius: 10px; font-size: 13px; font-weight: 700;
+      background: var(--g-dkr); color: #fff;
+      border: 1.5px solid rgba(255,255,255,.08);
+      transition: all .16s; box-shadow: 0 4px 14px rgba(0,0,0,.15);
+    }
+    .view-all-btn:hover { background: var(--g); transform: translateY(-1px); }
+
+    /* ── Save strip ── */
+    .save-strip {
+      display: flex; align-items: center; gap: 16px;
+      margin: 20px 0; padding: 18px 20px; border-radius: 18px;
+      background: linear-gradient(135deg, #0D1F16 0%, #163529 55%, var(--g-dk) 100%);
+      border: 1px solid rgba(1,212,100,.18);
+      box-shadow: 0 8px 32px rgba(0,0,0,.14);
+      position: relative; overflow: hidden;
+    }
+    .save-strip::after {
+      content: ''; position: absolute; top: -30px; right: -20px;
+      width: 130px; height: 130px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(1,212,100,.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .save-strip-icon {
+      flex-shrink: 0; width: 46px; height: 46px; border-radius: 13px;
+      background: rgba(1,212,100,.12); border: 1px solid rgba(1,212,100,.22);
+      display: flex; align-items: center; justify-content: center;
+      color: #01D464; position: relative; z-index: 1;
+    }
+    .save-strip-text { flex: 1; min-width: 0; position: relative; z-index: 1; }
+    .save-strip-title {
+      font-size: 14px; font-weight: 700; color: #fff;
+      margin-bottom: 3px; letter-spacing: -.1px;
+    }
+    .save-strip-sub { font-size: 12px; color: rgba(255,255,255,.5); line-height: 1.5; }
+    .save-strip-cta {
+      flex-shrink: 0; padding: 10px 18px; border-radius: 10px;
+      background: #01D464; color: #0D1F16;
+      font-size: 13px; font-weight: 800; white-space: nowrap;
+      transition: transform .15s, box-shadow .15s;
+      box-shadow: 0 2px 14px rgba(1,212,100,.4);
+      position: relative; z-index: 1;
+    }
+    .save-strip-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(1,212,100,.5); }
+    .save-strip.saved .save-strip-icon { background: rgba(1,212,100,.2); border-color: rgba(1,212,100,.35); }
+    .save-strip.saved .save-strip-title { color: #01D464; }
+    .save-strip.saved .save-strip-sub   { color: rgba(255,255,255,.6); }
+    @media (max-width: 520px) {
+      .save-strip { padding: 14px 16px; gap: 12px; }
+      .save-strip-cta { padding: 9px 14px; font-size: 12px; }
+    }
+
+    /* ── No-match state ── */
+    .nm-header {
+      text-align: center; padding: 36px 24px 20px;
+    }
+    .nm-icon { font-size: 38px; margin-bottom: 14px; }
+    .nm-title {
+      font-size: 20px; font-weight: 800; color: var(--t1);
+      margin-bottom: 8px; letter-spacing: -.3px;
+    }
+    .nm-sub {
+      font-size: 14px; color: var(--t2); line-height: 1.65;
+      max-width: 420px; margin: 0 auto;
+    }
+    .nm-divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 24px 0 18px; color: var(--t2); font-size: 12px;
+      font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+    }
+    .nm-divider::before, .nm-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .nm-adjust-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; margin: 24px 0 8px; padding: 13px 20px; border-radius: 12px;
+      background: var(--card); border: 1.5px solid var(--border);
+      font-size: 14px; font-weight: 600; color: var(--t2);
+      transition: border-color .15s, color .15s, background .15s; cursor: pointer;
+    }
+    .nm-adjust-btn:hover { border-color: var(--g); color: var(--g); background: var(--g-lt); }
+
+    /* ── Pages (pagResults / pagAll) ── */
+    #pagResults, #pagAll {
+      display: none; position: fixed; inset: 0;
+      background: var(--bg); overflow-y: auto;
+    }
+    #pagResults { z-index: 500; }
+    #pagAll     { z-index: 600; }
+
+    .pag-nav {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 62px;
+      background: var(--g-dkr); border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+    .back-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 600;
+      background: rgba(255,255,255,.1); color: #fff;
+      border: 1px solid rgba(255,255,255,.14); transition: background .15s;
+    }
+    .back-btn:hover { background: rgba(255,255,255,.18); }
+    .page-body { max-width: 900px; margin: 28px auto 100px; padding: 0 32px; }
+
+    .match-group { margin-bottom: 44px; }
+    .match-group-hdr {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 18px; border-radius: 10px;
+      font-size: 13px; font-weight: 700; margin-bottom: 16px;
+    }
+    .mgh-great { background: #BBFFD4; color: #14532D; }
+    .mgh-good  { background: #FEF9C3; color: #78350F; }
+    .mgh-fair  { background: #F3F4F6; color: #4B5563; }
+    .mg-count  { margin-left: auto; font-size: 12px; opacity: .65; font-weight: 600; }
+
+    /* ── Responsive ── */
+    @media (max-width: 760px) {
+      .nav, .pag-nav { padding: 0 16px; }
+      .results-subhdr { padding: 12px 16px 10px; }
+      .hero { padding: 36px 16px 64px; }
+      .hero-h1 { font-size: 28px; }
+      .hero-sub { font-size: 14px; margin-bottom: 32px; }
+      .widget-body { padding: 24px 20px 24px; }
+      .amt-val { font-size: 32px; }
+      .dual-field { grid-template-columns: 1fr; gap: 24px; }
+      .risk-grid { grid-template-columns: 1fr; gap: 8px; }
+      .risk-card { display: flex; align-items: center; gap: 14px; text-align: left; padding: 14px; }
+      .risk-icon { font-size: 24px; margin-bottom: 0; flex-shrink: 0; }
+      .bonds-grid { grid-template-columns: 1fr; }
+      .page-body { padding: 0 16px; margin-top: 24px; }
+      .floating-cta { padding: 12px 16px 28px; gap: 12px; }
+      .view-all-row { flex-direction: column; gap: 12px; text-align: center; }
+      .view-all-btn { width: 100%; justify-content: center; }
+      .cta-toast { font-size: 12px; white-space: normal; text-align: center; width: calc(100% - 32px); }
+    }
+    @media (max-width: 520px) {
+      .risk-grid { grid-template-columns: 1fr 1fr 1fr; }
+      .risk-card { flex-direction: column; text-align: center; padding: 12px 8px; gap: 6px; }
+      .risk-desc { display: none; }
+      .risk-ret { font-size: 10px; padding: 2px 6px; margin-top: 2px; }
+      .auth-overlay { align-items: flex-end; padding: 0; }
+      .auth-modal { border-radius: 24px 24px 0 0; max-width: 100%; padding: 24px 20px 32px; }
+    }
+
+    /* ── Auth Modal ── */
+    .auth-overlay {
+      position: fixed; inset: 0; z-index: 800;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .22s;
+    }
+    .auth-overlay.show {
+      opacity: 1; pointer-events: all;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(6px);
+    }
+    .auth-modal {
+      background: #fff; border-radius: 24px;
+      width: 100%; max-width: 420px;
+      padding: 28px 28px 32px;
+      position: relative;
+      transform: translateY(16px) scale(.97);
+      transition: transform .28s cubic-bezier(.34,1.4,.64,1);
+    }
+    .auth-overlay.show .auth-modal { transform: translateY(0) scale(1); }
+    .auth-close {
+      position: absolute; top: 18px; right: 20px;
+      font-size: 22px; line-height: 1; cursor: pointer;
+      color: var(--t2); background: none; border: none; padding: 2px 8px;
+    }
+    .auth-bond-ctx {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--g-lt); border: 1px solid #BBF7D0;
+      border-radius: 12px; padding: 11px 14px; margin-bottom: 22px;
+    }
+    .auth-bond-icon {
+      width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+      background: var(--g); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800;
+    }
+    .auth-bond-name { font-size: 13px; font-weight: 700; color: var(--t1); }
+    .auth-bond-amt  { font-size: 12px; color: var(--g); font-weight: 600; margin-top: 2px; }
+    .auth-title { font-size: 20px; font-weight: 800; color: var(--t1); margin-bottom: 6px; }
+    .auth-sub   { font-size: 13px; color: var(--t2); margin-bottom: 20px; line-height: 1.55; }
+    .auth-phone-wrap {
+      display: flex; align-items: center;
+      border: 1.5px solid var(--border); border-radius: 12px;
+      overflow: hidden; margin-bottom: 12px; transition: border-color .15s;
+    }
+    .auth-phone-wrap:focus-within { border-color: var(--g); }
+    .auth-phone-prefix {
+      padding: 14px 13px; font-size: 13px; font-weight: 600; color: var(--t1);
+      background: #F9FAFB; border-right: 1.5px solid var(--border); white-space: nowrap;
+    }
+    .auth-phone-input {
+      flex: 1; padding: 14px; border: none; outline: none;
+      font-size: 15px; font-weight: 600; color: var(--t1); font-family: inherit;
+    }
+    .auth-err { font-size: 12px; color: #DC2626; margin: -6px 0 12px 4px; display: none; }
+    .auth-err.show { display: block; }
+    .auth-submit {
+      width: 100%; padding: 15px; border: none; border-radius: 12px;
+      background: var(--g); color: #fff;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: opacity .15s; font-family: inherit;
+    }
+    .auth-submit:hover { opacity: .9; }
+    .auth-submit:disabled { opacity: .55; cursor: not-allowed; }
+    .auth-note { text-align: center; margin-top: 14px; font-size: 12px; color: var(--t2); line-height: 1.5; }
+    .auth-success { text-align: center; padding: 20px 0 8px; display: none; }
+    .auth-success-icon {
+      width: 60px; height: 60px; border-radius: 50%;
+      background: var(--g-lt); border: 2px solid #01D464;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; margin: 0 auto 18px;
+    }
+    .auth-success-title { font-size: 20px; font-weight: 800; color: var(--t1); margin-bottom: 8px; }
+    .auth-success-sub   { font-size: 13px; color: var(--t2); line-height: 1.5; }
+
+    /* ── Phone preview ── */
+    #phoneOverlay {
+      display: none; position: fixed; inset: 0; z-index: 9000;
+      background: #0c1220; align-items: center; justify-content: center;
+    }
+    #phoneOverlay.show { display: flex; }
+    .phone-device {
+      position: relative; background: #1c1c1e; border-radius: 52px; padding: 14px;
+      box-shadow: 0 0 0 1px #3a3a3c, 0 40px 100px rgba(0,0,0,.7), inset 0 0 0 1px #444;
+      transform: scale(0.88); transform-origin: center center;
+    }
+    .phone-inner { border-radius: 38px; overflow: hidden; display: flex; flex-direction: column; }
+    .phone-status-bar { height: 54px; background: #000; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .phone-notch { position: relative; width: 116px; height: 32px; background: #1c1c1e; border-radius: 20px; }
+    .phone-notch::before { content: ''; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; border-radius: 50%; background: #1c2b3a; box-shadow: 0 0 0 2px #0d1f2e; }
+    .phone-btn-r  { position: absolute; right: -4px; top: 110px; width: 4px; height: 70px; background: #3a3a3c; border-radius: 0 3px 3px 0; }
+    .phone-btn-l1 { position: absolute; left: -4px; top: 90px;  width: 4px; height: 40px; background: #3a3a3c; border-radius: 3px 0 0 3px; }
+    .phone-btn-l2 { position: absolute; left: -4px; top: 148px; width: 4px; height: 65px; background: #3a3a3c; border-radius: 3px 0 0 3px; }
+    .phone-btn-l3 { position: absolute; left: -4px; top: 228px; width: 4px; height: 65px; background: #3a3a3c; border-radius: 3px 0 0 3px; }
+    .phone-screen { width: 390px; height: 790px; overflow: hidden; background: #000; }
+    .phone-screen iframe { width: 390px; height: 790px; border: none; display: block; }
+    .phone-home { width: 130px; height: 5px; background: #555; border-radius: 3px; margin: 10px auto 2px; }
+    .phone-close {
+      position: absolute; top: 20px; right: 20px;
+      padding: 8px 16px; background: rgba(255,255,255,.1); color: #fff;
+      border-radius: 10px; font-size: 13px; font-weight: 600;
+      border: 1px solid rgba(255,255,255,.15); cursor: pointer; transition: background .15s;
+    }
+    .phone-close:hover { background: rgba(255,255,255,.18); }
+    #phoneFab {
+      position: fixed; bottom: 100px; right: 28px; z-index: 8999;
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 20px; border-radius: 100px;
+      background: var(--g-dk); color: #fff;
+      border: 1.5px solid rgba(255,255,255,.12);
+      font-size: 14px; font-weight: 600;
+      box-shadow: 0 4px 20px rgba(0,0,0,.25); transition: all .2s;
+    }
+    #phoneFab:hover { background: var(--g-mid); transform: translateY(-2px); }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav class="nav">
+  <div class="logo">aspero<em>.</em></div>
+  <div class="nav-right">
+    <span class="nav-user">Hey, Arpit 👋</span>
+  </div>
+</nav>
+
+<!-- ── Hero + Widget ── -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-tag">✦ Personalized for you</div>
+    <h1 class="hero-h1">Find bonds that match<br><span>your investment goals</span></h1>
+    <p class="hero-sub">Tell us what you're looking for — we'll show you the best bonds available right now.</p>
+
+    <div class="widget-outer">
+      <div class="widget">
+        <div class="widget-body">
+
+          <!-- Investment Amount -->
+          <div class="field-group">
+            <div class="field-label">How much do you want to invest?</div>
+            <div class="amt-row">
+              <div class="amt-val"><sup>₹</sup><span id="amtNum">1,00,000</span></div>
+              <div class="amt-hint">Drag to adjust</div>
+            </div>
+            <div class="slider-wrap">
+              <div class="slider-track">
+                <div class="slider-progress" id="sliderProgress"></div>
+                <input type="range" class="range-slider" id="amtSlider" min="0" max="100" value="40" />
+              </div>
+            </div>
+            <div class="slider-markers">
+              <span>₹10K</span><span>₹50K</span><span>₹1L</span><span>₹5L</span><span>₹10L</span><span>₹50L</span>
+            </div>
+            <div class="quick-amts">
+              <button class="qa-chip active" data-amt="10000">₹10K</button>
+              <button class="qa-chip" data-amt="25000">₹25K</button>
+              <button class="qa-chip" data-amt="50000">₹50K</button>
+              <button class="qa-chip" data-amt="100000">₹1L</button>
+              <button class="qa-chip" data-amt="500000">₹5L</button>
+              <button class="qa-chip" data-amt="1000000">₹10L</button>
+              <button class="qa-chip" data-amt="2500000">₹25L</button>
+            </div>
+          </div>
+
+          <!-- Duration + Returns — no defaults -->
+          <div class="dual-field">
+            <div id="durationGroup">
+              <div class="field-label">Investment Duration</div>
+              <div class="pills" id="durationPills">
+                <button class="pill-btn" data-val="6">6 Months</button>
+                <button class="pill-btn" data-val="12">12 Months</button>
+                <button class="pill-btn" data-val="18">18 Months</button>
+                <button class="pill-btn" data-val="24">2 Years+</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Risk Appetite — no default -->
+          <div class="field-group" id="riskGroup" style="margin-bottom:0">
+            <div class="field-label">Risk Appetite</div>
+            <div class="risk-grid" id="riskCards">
+              <div class="risk-card" data-risk="conservative">
+                <span class="risk-icon">🛡️</span>
+                <div class="risk-name">Conservative</div>
+                <div class="risk-desc">AAA & AA+ rated. Capital safety first.</div>
+                <div class="risk-ret">7.5 – 10% p.a.</div>
+              </div>
+              <div class="risk-card" data-risk="moderate">
+                <span class="risk-icon">⚖️</span>
+                <div class="risk-name">Moderate</div>
+                <div class="risk-desc">AA rated bonds. Balanced risk-reward.</div>
+                <div class="risk-ret">10 – 13% p.a.</div>
+              </div>
+              <div class="risk-card" data-risk="aggressive">
+                <span class="risk-icon">🚀</span>
+                <div class="risk-name">Aggressive</div>
+                <div class="risk-desc">A & BBB rated. Higher returns, higher risk.</div>
+                <div class="risk-ret">13 – 16% p.a.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /widget-body -->
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── Hint toast ── -->
+<div class="cta-toast" id="ctaToast">
+  Please select your duration & risk appetite to find bonds
+</div>
+
+<!-- ── Floating CTA — always visible ── -->
+<div class="floating-cta" id="floatingCta">
+  <div class="floating-cta-info">
+    <div class="cta-primary" id="ctaPrimary">Select your preferences above</div>
+    <div class="cta-secondary" id="ctaSecondary"></div>
+  </div>
+  <button class="show-btn locked" id="ctaBtn" onclick="handleCtaClick()">
+    View Matching Bonds
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+  </button>
+</div>
+
+<!-- ── Results page (top 5) ── -->
+<div id="pagResults">
+  <nav class="pag-nav">
+    <button class="back-btn" onclick="showMain()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Change Filters
+    </button>
+    <div class="logo" style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-.5px">aspero<em style="color:#01D464;font-style:normal">.</em></div>
+    <div style="width:120px"></div>
+  </nav>
+  <div class="results-subhdr">
+    <div class="results-subhdr-inner">
+      <div class="results-bar">
+        <div class="results-title-row">
+          <div class="results-title">Matching Bonds</div>
+          <div class="count-pill" id="countPillR">—</div>
+        </div>
+        <select class="sort-select" id="sortSelectR" onchange="sortAndRenderR()">
+          <option value="match">Best Match</option>
+          <option value="high">Highest Returns</option>
+          <option value="low">Lowest Returns</option>
+          <option value="safe">Safest First</option>
+        </select>
+      </div>
+      <div class="filter-chips" id="filterChipsR"></div>
+    </div>
+  </div>
+  <div class="page-body">
+    <div class="bonds-grid" id="bondsGridR"></div>
+    <div class="save-strip" id="saveStripR">
+      <div class="save-strip-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <div class="save-strip-text">
+        <div class="save-strip-title">Get alerts for new matching bonds</div>
+        <div class="save-strip-sub">Free account · 30 seconds to set up</div>
+      </div>
+      <button class="save-strip-cta" onclick="openSaveModal()">Sign up free →</button>
+    </div>
+    <div class="view-all-row" id="viewAllRowR" style="display:none">
+      <div class="view-all-lbl">Showing top 5 &nbsp;·&nbsp; <strong id="viewAllCountR">0</strong> total matches</div>
+      <button class="view-all-btn" onclick="showAll()">
+        View All Matching Bonds
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── All-Bonds page ── -->
+<div id="pagAll">
+  <nav class="pag-nav">
+    <button class="back-btn" onclick="showMain()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back to Home
+    </button>
+    <div class="logo" style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-.5px">aspero<em style="color:#01D464;font-style:normal">.</em></div>
+    <div style="width:120px"></div>
+  </nav>
+  <div class="results-subhdr">
+    <div class="results-subhdr-inner">
+      <div class="results-bar">
+        <div class="results-title-row">
+          <div class="results-title">All Matching Bonds</div>
+          <div class="count-pill" id="countPillAll">—</div>
+        </div>
+        <select class="sort-select" id="sortSelectAll" onchange="sortAndRenderAll()">
+          <option value="match">Best Match</option>
+          <option value="high">Highest Returns</option>
+          <option value="low">Lowest Returns</option>
+          <option value="safe">Safest First</option>
+        </select>
+      </div>
+      <div class="filter-chips" id="filterChipsAll"></div>
+    </div>
+  </div>
+  <div class="page-body">
+    <div id="allBondsContainer"></div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════
+   Bond Data
+════════════════════════════════════════════════ */
+const BONDS = [
+  { id:1,  name:"HDFC Ltd",            cat:"Housing Finance",    rating:"AAA",  rs:1, ret:8.50,  dur:12, min:10000,  risk:"conservative" },
+  { id:2,  name:"Bajaj Finance",       cat:"Consumer Finance",   rating:"AAA",  rs:1, ret:9.20,  dur:18, min:10000,  risk:"conservative" },
+  { id:3,  name:"LIC Housing Finance", cat:"Housing Finance",    rating:"AAA",  rs:1, ret:8.80,  dur:6,  min:25000,  risk:"conservative" },
+  { id:4,  name:"REC Limited",         cat:"Govt. Enterprise",   rating:"AAA",  rs:1, ret:7.50,  dur:6,  min:10000,  risk:"conservative" },
+  { id:5,  name:"IRFC",                cat:"Railway Finance",    rating:"AAA",  rs:1, ret:7.80,  dur:24, min:25000,  risk:"conservative" },
+  { id:6,  name:"Power Finance Corp",  cat:"Govt. Enterprise",   rating:"AAA",  rs:1, ret:7.90,  dur:6,  min:10000,  risk:"conservative" },
+  { id:7,  name:"Sundaram Finance",    cat:"NBFC",               rating:"AA+",  rs:2, ret:9.80,  dur:12, min:10000,  risk:"conservative" },
+  { id:8,  name:"Tata Capital",        cat:"NBFC",               rating:"AA+",  rs:2, ret:10.50, dur:24, min:25000,  risk:"moderate"     },
+  { id:9,  name:"Shriram Finance",     cat:"NBFC",               rating:"AA+",  rs:2, ret:11.50, dur:12, min:10000,  risk:"moderate"     },
+  { id:10, name:"Mahindra Finance",    cat:"Vehicle Finance",    rating:"AA+",  rs:2, ret:10.20, dur:18, min:10000,  risk:"moderate"     },
+  { id:11, name:"Muthoot Finance",     cat:"Gold Finance",       rating:"AA",   rs:3, ret:12.00, dur:18, min:10000,  risk:"moderate"     },
+  { id:12, name:"Manappuram Finance",  cat:"Gold Finance",       rating:"AA",   rs:3, ret:11.75, dur:12, min:10000,  risk:"moderate"     },
+  { id:13, name:"Cholamandalam Inv.",  cat:"Vehicle Finance",    rating:"AA",   rs:3, ret:10.80, dur:24, min:25000,  risk:"moderate"     },
+  { id:14, name:"Piramal Capital",     cat:"Real Estate Finance",rating:"AA-",  rs:4, ret:13.50, dur:24, min:25000,  risk:"aggressive"   },
+  { id:15, name:"IIFL Finance",        cat:"NBFC",               rating:"AA-",  rs:4, ret:13.00, dur:18, min:10000,  risk:"aggressive"   },
+  { id:16, name:"Aptus Value Housing", cat:"Housing Finance",    rating:"A+",   rs:5, ret:13.75, dur:12, min:25000,  risk:"aggressive"   },
+  { id:17, name:"Edelweiss ARC",       cat:"Asset Reconst.",     rating:"A",    rs:6, ret:14.50, dur:12, min:50000,  risk:"aggressive"   },
+  { id:18, name:"Northern Arc Capital",cat:"NBFC",               rating:"A",    rs:6, ret:14.00, dur:18, min:25000,  risk:"aggressive"   },
+  { id:19, name:"Vivriti Capital",     cat:"NBFC",               rating:"A-",   rs:7, ret:15.50, dur:12, min:50000,  risk:"aggressive"   },
+  { id:20, name:"Ugro Capital",        cat:"SME Finance",        rating:"BBB+", rs:8, ret:16.00, dur:24, min:100000, risk:"aggressive"   },
+];
+
+/* ════════════════════════════════════════════════
+   State — duration / returns / risk start as null (unselected)
+════════════════════════════════════════════════ */
+const AMT_MIN = 10000, AMT_MAX = 5000000;
+let resultsOpen  = false;
+let allBondsOpen = false;
+const state = {
+  amount:   10000,
+  duration: null,   // null = not selected
+  risk:     null,
+  sort:     'match',
+};
+
+function hasSelection() {
+  return state.duration !== null && state.risk !== null;
+}
+
+/* ════════════════════════════════════════════════
+   Helpers
+════════════════════════════════════════════════ */
+function fmtAmt(n) {
+  if (n >= 10000000) return '₹' + (n / 10000000).toFixed(1) + 'Cr';
+  if (n >= 100000)   return '₹' + (n / 100000).toFixed(n % 100000 === 0 ? 0 : 1) + 'L';
+  if (n >= 1000)     return '₹' + (n / 1000).toFixed(0) + 'K';
+  return '₹' + n;
+}
+function fmtAmtFull(n) { return '₹' + n.toLocaleString('en-IN'); }
+function earnings(amount, ret, durMonths) {
+  return Math.round(amount * (ret / 100) * (durMonths / 12));
+}
+
+function sliderToAmt(v) {
+  const lmin = Math.log(AMT_MIN), lmax = Math.log(AMT_MAX);
+  return Math.round(Math.exp(lmin + (v / 100) * (lmax - lmin)));
+}
+function amtToSlider(amt) {
+  const lmin = Math.log(AMT_MIN), lmax = Math.log(AMT_MAX);
+  return ((Math.log(amt) - lmin) / (lmax - lmin)) * 100;
+}
+function rCls(r) {
+  const m = { 'AAA':'AAA','AA+':'AAp','AA':'AA','AA-':'AAm','A+':'Ap','A':'A','A-':'Am' };
+  return 'r-' + (m[r] || 'BBB');
+}
+
+/* Match score — null dimensions are skipped */
+function matchScore(b) {
+  let s = 0;
+  if (state.duration !== null) {
+    const dd = Math.abs(b.dur - state.duration);
+    if (dd === 0) s += 40;
+    else if (dd <= 6) s += 22;
+    else if (dd <= 12) s += 10;
+  }
+  if (state.risk !== null) {
+    const rm = { conservative: 0, moderate: 1, aggressive: 2 };
+    const rd = Math.abs(rm[b.risk] - rm[state.risk]);
+    if (rd === 0) s += 25;
+    else if (rd === 1) s += 10;
+  }
+  return s;
+}
+
+/* ════════════════════════════════════════════════
+   Filter + Sort — null risk = no risk filtering
+════════════════════════════════════════════════ */
+function getFiltered() {
+  const rm = { conservative: 0, moderate: 1, aggressive: 2 };
+  return BONDS
+    .filter(b => {
+      if (b.min > state.amount) return false;
+      if (state.risk !== null && Math.abs(rm[b.risk] - rm[state.risk]) > 1) return false;
+      return true;
+    })
+    .map(b => ({ ...b, score: matchScore(b) }));
+}
+
+function sorted(bonds) {
+  switch (state.sort) {
+    case 'high': return [...bonds].sort((a, b) => b.ret - a.ret);
+    case 'low':  return [...bonds].sort((a, b) => a.ret - b.ret);
+    case 'safe': return [...bonds].sort((a, b) => a.rs - b.rs);
+    default:     return [...bonds].sort((a, b) => b.score - a.score);
+  }
+}
+
+/* ════════════════════════════════════════════════
+   Bond card template
+════════════════════════════════════════════════ */
+function bondCard(b) {
+  const est    = earnings(state.amount, b.ret, b.dur);
+  const durLbl = b.dur >= 24 ? (b.dur / 12) + ' Years' : b.dur + ' Months';
+  const abbr   = b.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const [mbTxt, mbCls] = b.score >= 70
+    ? ['✦ Great Match', 'mb-great']
+    : b.score >= 40
+      ? ['◆ Good Match', 'mb-good']
+      : ['· Fair Match', 'mb-fair'];
+  return `
+    <div class="bond-card">
+      <div class="bond-card-top">
+        <div class="bond-abbr">${abbr}</div>
+        <span class="match-badge ${mbCls}">${mbTxt}</span>
+      </div>
+      <div class="bond-name">${b.name}</div>
+      <div class="bond-cat">${b.cat}</div>
+      <div class="bond-yield">${b.ret}%</div>
+      <div class="bond-yield-lbl">YTM &nbsp;·&nbsp; ${durLbl}</div>
+      <div class="bond-meta">
+        <div><div class="bm-lbl">Rating</div><div class="bm-val"><span class="rating-badge ${rCls(b.rating)}">${b.rating}</span></div></div>
+        <div><div class="bm-lbl">Min. Invest</div><div class="bm-val">${fmtAmt(b.min)}</div></div>
+      </div>
+      <div class="bond-earnings">
+        <div class="be-lbl">Est. returns on ${fmtAmt(state.amount)}</div>
+        <div class="be-val">+${fmtAmtFull(est)}</div>
+      </div>
+      <button class="invest-btn" onclick="investNow('${b.name}', ${b.ret}, ${b.dur})">Invest Now →</button>
+    </div>`;
+}
+
+/* ════════════════════════════════════════════════
+   Filter chips — skips null dimensions
+════════════════════════════════════════════════ */
+function filterChipsHTML() {
+  const chips = [`<span class="filter-chip filter-chip-editable" onclick="openAmountSheet()">💰 ${fmtAmtFull(state.amount)}<span class="chip-edit-icon">✎</span></span>`];
+  if (state.duration !== null)
+    chips.push(`<span class="filter-chip">⏱ ${state.duration >= 24 ? '2 Years+' : state.duration + ' Months'}</span>`);
+  if (state.risk !== null)
+    chips.push(`<span class="filter-chip">🎯 ${state.risk.charAt(0).toUpperCase() + state.risk.slice(1)}</span>`);
+  return chips.join('');
+}
+
+/* ════════════════════════════════════════════════
+   Render – selection page (floating CTA state)
+════════════════════════════════════════════════ */
+function render() {
+  const filtered = getFiltered();
+  const bonds    = sorted(filtered);
+  const count    = bonds.length;
+  const active   = hasSelection();
+
+  const primary   = document.getElementById('ctaPrimary');
+  const secondary = document.getElementById('ctaSecondary');
+  const btn       = document.getElementById('ctaBtn');
+
+  if (active) {
+    const parts = [fmtAmt(state.amount)];
+    if (state.duration !== null) parts.push(state.duration >= 24 ? '2 Yrs+' : state.duration + ' Mo');
+    if (state.risk !== null)     parts.push(state.risk.charAt(0).toUpperCase() + state.risk.slice(1));
+
+    primary.innerHTML   = `<em>${count}</em> bonds match your criteria`;
+    secondary.textContent = parts.join(' · ');
+    primary.classList.add('active');
+    secondary.classList.add('active');
+    btn.className = 'show-btn active';
+  } else {
+    primary.textContent   = 'Select your preferences above';
+    secondary.textContent = '';
+    primary.classList.remove('active');
+    secondary.classList.remove('active');
+    btn.className = 'show-btn locked';
+  }
+
+  /* Re-render results page if open */
+  if (resultsOpen) renderResults();
+}
+
+/* ════════════════════════════════════════════════
+   CTA click handler
+════════════════════════════════════════════════ */
+function pulseField(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('field-highlight');
+  void el.offsetWidth; // force reflow to restart animation
+  el.classList.add('field-highlight');
+  setTimeout(() => el.classList.remove('field-highlight'), 1700);
+}
+
+let toastTimer = null;
+function handleCtaClick() {
+  if (!hasSelection()) {
+    const missing = [];
+    if (state.duration === null) missing.push('duration');
+    if (state.risk === null)     missing.push('risk appetite');
+    const toast = document.getElementById('ctaToast');
+    toast.textContent = 'Please select your ' + missing.join(' & ') + ' to find bonds';
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+    if (state.duration === null) pulseField('durationGroup');
+    if (state.risk === null)     pulseField('riskGroup');
+    return;
+  }
+  showResults();
+}
+
+/* Fallback bonds for no-match state: drop duration filter, keep amount + risk */
+function getTopPicksForRisk() {
+  const rm = { conservative: 0, moderate: 1, aggressive: 2 };
+  return BONDS
+    .filter(b => {
+      if (b.min > state.amount) return false;
+      if (state.risk !== null && Math.abs(rm[b.risk] - rm[state.risk]) > 1) return false;
+      return true;
+    })
+    .sort((a, b) => b.ret - a.ret)
+    .slice(0, 3);
+}
+
+/* ════════════════════════════════════════════════
+   Render – results page (top 5)
+════════════════════════════════════════════════ */
+function renderResults() {
+  const filtered = getFiltered();
+  const bonds    = sorted(filtered);
+  const count    = bonds.length;
+
+  document.getElementById('filterChipsR').innerHTML = filterChipsHTML();
+  document.getElementById('countPillR').textContent = count + ' found';
+  document.getElementById('sortSelectR').value = state.sort;
+
+
+  const grid = document.getElementById('bondsGridR');
+  if (count === 0) {
+    const riskLabel = state.risk
+      ? state.risk.charAt(0).toUpperCase() + state.risk.slice(1)
+      : '';
+    const topPicks  = getTopPicksForRisk();
+    document.getElementById('countPillR').textContent = '0 matches';
+    if (topPicks.length > 0) {
+      grid.innerHTML = `
+        <div class="nm-header">
+          <div class="nm-icon">🔍</div>
+          <div class="nm-title">No exact matches right now</div>
+          <div class="nm-sub">No bonds match your duration filter at the moment. Here are the top-rated ${riskLabel} bonds you can invest in today.</div>
+        </div>
+        <div class="nm-divider">Top picks for you</div>
+        ${topPicks.map(bondCard).join('')}
+        <button class="nm-adjust-btn" onclick="showMain()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Adjust my criteria
+        </button>`;
+    } else {
+      grid.innerHTML = `
+        <div class="nm-header">
+          <div class="nm-icon">🔍</div>
+          <div class="nm-title">No bonds match</div>
+          <div class="nm-sub">Try a lower investment amount or a different risk preference.</div>
+        </div>
+        <button class="nm-adjust-btn" onclick="showMain()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Adjust my criteria
+        </button>`;
+    }
+    document.getElementById('viewAllRowR').style.display = 'none';
+    document.getElementById('saveStripR').style.display  = 'none';
+    return;
+  }
+  grid.innerHTML = bonds.slice(0, 5).map(bondCard).join('');
+
+  // Hide save strip once user is logged in (strip has served its purpose)
+  document.getElementById('saveStripR').style.display = isLoggedIn ? 'none' : '';
+
+  const row = document.getElementById('viewAllRowR');
+  if (count > 5) {
+    document.getElementById('viewAllCountR').textContent = count;
+    row.style.display = '';
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+/* ════════════════════════════════════════════════
+   Render – all bonds page
+════════════════════════════════════════════════ */
+function renderAllPage() {
+  const allSorted = sorted(getFiltered());
+  const great = allSorted.filter(b => b.score >= 70);
+  const good  = allSorted.filter(b => b.score >= 40 && b.score < 70);
+  const fair  = allSorted.filter(b => b.score < 40);
+
+  document.getElementById('filterChipsAll').innerHTML = filterChipsHTML();
+  document.getElementById('countPillAll').textContent = allSorted.length + ' found';
+  document.getElementById('sortSelectAll').value      = state.sort;
+
+  function group(bonds, cls, label) {
+    if (!bonds.length) return '';
+    return `<div class="match-group"><div class="match-group-hdr ${cls}"><span>${label}</span><span class="mg-count">${bonds.length} bond${bonds.length > 1 ? 's' : ''}</span></div><div class="bonds-grid">${bonds.map(bondCard).join('')}</div></div>`;
+  }
+
+  document.getElementById('allBondsContainer').innerHTML =
+    group(great, 'mgh-great', '✦ Great Match') +
+    group(good,  'mgh-good',  '◆ Good Match')  +
+    group(fair,  'mgh-fair',  '· Fair Match')  ||
+    `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-h">No bonds found</div></div>`;
+}
+
+/* ════════════════════════════════════════════════
+   Page navigation
+════════════════════════════════════════════════ */
+function showResults() {
+  if (!hasSelection()) { handleCtaClick(); return; }
+  resultsOpen = true;
+  renderResults();
+  const pg = document.getElementById('pagResults');
+  pg.style.display = 'block'; pg.scrollTop = 0;
+  document.getElementById('phoneFab').style.display = 'none';
+}
+
+function showMain() {
+  resultsOpen  = false;
+  allBondsOpen = false;
+  document.getElementById('pagResults').style.display = 'none';
+  document.getElementById('pagAll').style.display     = 'none';
+  document.getElementById('phoneFab').style.display   = 'flex';
+}
+
+function showAll() {
+  allBondsOpen = true;
+  renderAllPage();
+  const pg = document.getElementById('pagAll');
+  pg.style.display = 'block'; pg.scrollTop = 0;
+}
+
+function sortAndRenderR() {
+  state.sort = document.getElementById('sortSelectR').value;
+  renderResults();
+  if (allBondsOpen) renderAllPage();
+}
+function sortAndRenderAll() {
+  state.sort = document.getElementById('sortSelectAll').value;
+  document.getElementById('sortSelectR').value = state.sort;
+  renderAllPage();
+}
+
+/* ════════════════════════════════════════════════
+   Slider
+════════════════════════════════════════════════ */
+const slider   = document.getElementById('amtSlider');
+const progress = document.getElementById('sliderProgress');
+
+function updateSlider(pct) {
+  slider.value = pct;
+  progress.style.width = pct + '%';
+  state.amount = sliderToAmt(pct);
+  document.getElementById('amtNum').textContent = state.amount.toLocaleString('en-IN');
+  document.querySelectorAll('.qa-chip').forEach(c =>
+    c.classList.toggle('active', parseInt(c.dataset.amt) === state.amount));
+  render();
+}
+
+slider.addEventListener('input', () => updateSlider(slider.value));
+updateSlider(amtToSlider(10000));
+
+document.querySelectorAll('.qa-chip').forEach(chip =>
+  chip.addEventListener('click', () => updateSlider(amtToSlider(parseInt(chip.dataset.amt)))));
+
+/* Duration */
+document.querySelectorAll('#durationPills .pill-btn').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#durationPills .pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.duration = parseInt(btn.dataset.val);
+    render();
+    if (state.risk === null)
+      setTimeout(() => document.getElementById('riskGroup').scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+  }));
+
+/* Risk */
+document.querySelectorAll('#riskCards .risk-card').forEach(card =>
+  card.addEventListener('click', () => {
+    document.querySelectorAll('#riskCards .risk-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    state.risk = card.dataset.risk;
+    render();
+  }));
+
+/* ════════════════════════════════════════════════
+   Amount Bottom Sheet
+════════════════════════════════════════════════ */
+function updateSheetSlider(pct) {
+  const ss = document.getElementById('sheetSlider');
+  const sp = document.getElementById('sheetProgress');
+  ss.value = pct;
+  sp.style.width = pct + '%';
+  state.amount = sliderToAmt(pct);
+  document.getElementById('sheetAmtNum').textContent = state.amount.toLocaleString('en-IN');
+  // Keep main slider in sync
+  slider.value = pct;
+  progress.style.width = pct + '%';
+  document.getElementById('amtNum').textContent = state.amount.toLocaleString('en-IN');
+  // Sync all qa-chips (main + sheet)
+  document.querySelectorAll('.qa-chip').forEach(c =>
+    c.classList.toggle('active', parseInt(c.dataset.amt) === state.amount));
+  // Live-update whichever results page is currently visible
+  if (resultsOpen) renderResults();
+  if (allBondsOpen) renderAllPage();
+}
+
+function openAmountSheet() {
+  const pct = amtToSlider(state.amount);
+  updateSheetSlider(pct);
+  document.getElementById('sheetOverlay').classList.add('show');
+  document.getElementById('amtSheet').classList.add('show');
+}
+
+function closeAmountSheet() {
+  document.getElementById('sheetOverlay').classList.remove('show');
+  document.getElementById('amtSheet').classList.remove('show');
+  // Show "Updated" badge on each est. returns box after sheet slides away
+  setTimeout(() => {
+    document.querySelectorAll('.bond-earnings').forEach(el => {
+      // Remove any existing badge first
+      el.querySelectorAll('.earnings-updated-badge').forEach(b => b.remove());
+      const badge = document.createElement('span');
+      badge.className = 'earnings-updated-badge';
+      badge.textContent = '✓ Updated';
+      el.appendChild(badge);
+      // Remove from DOM after animation completes
+      setTimeout(() => badge.remove(), 1450);
+    });
+  }, 350);
+}
+
+// Sheet listeners — deferred until DOM is fully parsed
+window.addEventListener('load', () => {
+  document.getElementById('sheetSlider').addEventListener('input', function() {
+    updateSheetSlider(this.value);
+  });
+  document.querySelectorAll('.sheet-chip').forEach(chip =>
+    chip.addEventListener('click', () =>
+      updateSheetSlider(amtToSlider(parseInt(chip.dataset.amt)))));
+});
+
+/* ════════════════════════════════════════════════
+   Auth state
+════════════════════════════════════════════════ */
+let isLoggedIn   = false;
+let pendingInvest = null;
+let pendingSave   = false;
+
+function openAuthModal(name, ret, dur) {
+  pendingInvest = { name, ret, dur };
+  pendingSave   = false;
+  const abbr = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  document.getElementById('authBondIcon').textContent = abbr;
+  document.getElementById('authBondName').textContent = name;
+  document.getElementById('authBondAmt').textContent  = `Investing ${fmtAmtFull(state.amount)}`;
+  document.getElementById('authBondCtxEl').style.display  = '';
+  document.getElementById('authModalTitle').textContent   = 'Enter your mobile number';
+  document.getElementById('authModalSub').textContent     = 'We\'ll send you a one-time password to verify. New or existing user — we\'ll take care of the rest.';
+  document.getElementById('authSubmitBtn').textContent    = 'Continue →';
+  document.getElementById('authSuccessSub').textContent  = 'Redirecting you to complete your investment…';
+  // Reset form
+  document.getElementById('authPhone').value = '';
+  document.getElementById('authErr').classList.remove('show');
+  document.getElementById('authSubmitBtn').disabled    = false;
+  document.getElementById('authFormSection').style.display = 'block';
+  document.getElementById('authSuccess').style.display    = 'none';
+  document.getElementById('authOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('authPhone').focus(), 300);
+}
+
+function openSaveModal() {
+  pendingInvest = null;
+  pendingSave   = true;
+  document.getElementById('authBondCtxEl').style.display = 'none';
+  document.getElementById('authModalTitle').textContent  = 'Save your results';
+  document.getElementById('authModalSub').textContent    = 'Create a free account to bookmark these bonds and get notified when new matches appear.';
+  document.getElementById('authSubmitBtn').textContent   = 'Create Account →';
+  document.getElementById('authSuccessSub').textContent = 'Your results have been saved. We\'ll alert you when new matching bonds are listed.';
+  // Reset form
+  document.getElementById('authPhone').value = '';
+  document.getElementById('authErr').classList.remove('show');
+  document.getElementById('authSubmitBtn').disabled    = false;
+  document.getElementById('authFormSection').style.display = 'block';
+  document.getElementById('authSuccess').style.display    = 'none';
+  document.getElementById('authOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('authPhone').focus(), 300);
+}
+
+function closeAuthModal() {
+  document.getElementById('authOverlay').classList.remove('show');
+  pendingInvest = null;
+  pendingSave   = false;
+}
+
+function handleAuthSubmit() {
+  const phone = document.getElementById('authPhone').value.trim();
+  if (!/^\d{10}$/.test(phone)) {
+    document.getElementById('authErr').classList.add('show');
+    document.getElementById('authPhone').focus();
+    return;
+  }
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Verifying…';
+  // Simulate OTP verification
+  const wasSave    = pendingSave;
+  const savedInvest = pendingInvest;
+  setTimeout(() => {
+    isLoggedIn = true;
+    document.getElementById('authFormSection').style.display = 'none';
+    document.getElementById('authSuccess').style.display     = 'block';
+    setTimeout(() => {
+      closeAuthModal();
+      if (savedInvest) {
+        investNow(savedInvest.name, savedInvest.ret, savedInvest.dur);
+      }
+      if (wasSave) {
+        // Transform save strip to confirmed state
+        const strip = document.getElementById('saveStripR');
+        if (strip) {
+          strip.classList.add('saved');
+          strip.innerHTML = `
+            <div class="save-strip-icon" style="background:rgba(1,212,100,.2);border-color:rgba(1,212,100,.35)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#01D464" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="save-strip-text">
+              <div class="save-strip-title" style="color:#01D464">You're in! Results saved.</div>
+              <div class="save-strip-sub">We'll notify you when new bonds matching your criteria are listed.</div>
+            </div>`;
+          // Hide after 4s so it doesn't linger forever
+          setTimeout(() => { strip.style.display = 'none'; }, 4000);
+        }
+      }
+    }, 1800);
+  }, 1500);
+}
+
+// Close on overlay click (outside modal card)
+document.addEventListener('click', e => {
+  if (e.target.id === 'authOverlay') closeAuthModal();
+});
+
+// Enter key submits
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('authOverlay').classList.contains('show'))
+    handleAuthSubmit();
+});
+
+/* ════════════════════════════════════════════════
+   Invest Now
+════════════════════════════════════════════════ */
+function investNow(name, ret, dur) {
+  if (!isLoggedIn) { openAuthModal(name, ret, dur); return; }
+  const durLabel = dur >= 24 ? (dur / 12) + ' years' : dur + ' months';
+  const est = earnings(state.amount, ret, dur);
+  alert(`Investing ${fmtAmtFull(state.amount)} in ${name}\n\nReturn: ${ret}% p.a. over ${durLabel}\nEst. earnings: +${fmtAmtFull(est)}\n\n(This would open the investment flow in production.)`);
+}
+
+/* ════════════════════════════════════════════════
+   Phone preview
+════════════════════════════════════════════════ */
+function openPhone() {
+  document.getElementById('phoneOverlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('phoneFrame').src = '/?mobile=1&t=' + Date.now();
+}
+function closePhone() {
+  document.getElementById('phoneOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+  document.getElementById('phoneFrame').src = '';
+}
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('mobile') !== null) {
+    const s = document.createElement('style');
+    s.textContent = '::-webkit-scrollbar{display:none}html,body{scrollbar-width:none;-ms-overflow-style:none;}';
+    document.head.appendChild(s);
+    document.addEventListener('DOMContentLoaded', () => {
+      const fab = document.getElementById('phoneFab');
+      if (fab) fab.style.display = 'none';
+      const ov = document.getElementById('phoneOverlay');
+      if (ov) ov.style.display = 'none';
+    });
+  }
+})();
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('authOverlay').classList.contains('show')) closeAuthModal();
+    else closePhone();
+  }
+});
+</script>
+
+<!-- ── Phone preview overlay ── -->
+<div id="phoneOverlay">
+  <button class="phone-close" onclick="closePhone()">✕ Exit Mobile Preview</button>
+  <div class="phone-device">
+    <div class="phone-inner">
+      <div class="phone-status-bar"><div class="phone-notch"></div></div>
+      <div class="phone-screen"><iframe id="phoneFrame" src="" title="Mobile preview"></iframe></div>
+    </div>
+    <div class="phone-btn-r"></div>
+    <div class="phone-btn-l1"></div>
+    <div class="phone-btn-l2"></div>
+    <div class="phone-btn-l3"></div>
+    <div class="phone-home"></div>
+  </div>
+</div>
+
+<!-- ── Amount Bottom Sheet ── -->
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="amt-sheet" id="amtSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title">Investment Amount</div>
+  </div>
+  <div class="sheet-body">
+    <div class="sheet-amt-val"><sup>₹</sup><span id="sheetAmtNum">10,000</span></div>
+    <div class="slider-wrap">
+      <div class="slider-track">
+        <div class="slider-progress" id="sheetProgress"></div>
+        <input type="range" class="range-slider" id="sheetSlider" min="0" max="100" value="0" />
+      </div>
+    </div>
+    <div class="slider-markers">
+      <span>₹10K</span><span>₹50K</span><span>₹1L</span><span>₹5L</span><span>₹10L</span><span>₹50L</span>
+    </div>
+    <div class="sheet-chips">
+      <button class="qa-chip sheet-chip" data-amt="10000">₹10K</button>
+      <button class="qa-chip sheet-chip" data-amt="25000">₹25K</button>
+      <button class="qa-chip sheet-chip" data-amt="50000">₹50K</button>
+      <button class="qa-chip sheet-chip" data-amt="100000">₹1L</button>
+      <button class="qa-chip sheet-chip" data-amt="500000">₹5L</button>
+      <button class="qa-chip sheet-chip" data-amt="1000000">₹10L</button>
+      <button class="qa-chip sheet-chip" data-amt="2500000">₹25L</button>
+    </div>
+    <button class="sheet-cta" onclick="closeAmountSheet()">Update Results</button>
+  </div>
+</div>
+
+<!-- ── Auth Modal ── -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-modal">
+    <button class="auth-close" onclick="closeAuthModal()">×</button>
+    <div class="auth-bond-ctx" id="authBondCtxEl">
+      <div class="auth-bond-icon" id="authBondIcon">HB</div>
+      <div>
+        <div class="auth-bond-name" id="authBondName">—</div>
+        <div class="auth-bond-amt" id="authBondAmt">—</div>
+      </div>
+    </div>
+    <div id="authFormSection">
+      <div class="auth-title" id="authModalTitle">Enter your mobile number</div>
+      <p class="auth-sub" id="authModalSub">We'll send you a one-time password to verify. New or existing user — we'll take care of the rest.</p>
+      <div class="auth-phone-wrap">
+        <span class="auth-phone-prefix">🇮🇳 +91</span>
+        <input type="tel" class="auth-phone-input" id="authPhone" placeholder="Enter mobile number" maxlength="10" oninput="document.getElementById('authErr').classList.remove('show')">
+      </div>
+      <div class="auth-err" id="authErr">Please enter a valid 10-digit mobile number</div>
+      <button class="auth-submit" id="authSubmitBtn" onclick="handleAuthSubmit()">Continue →</button>
+      <p class="auth-note">By continuing, you agree to Aspero's Terms & Privacy Policy</p>
+    </div>
+    <div class="auth-success" id="authSuccess">
+      <div class="auth-success-icon">✓</div>
+      <div class="auth-success-title">You're in!</div>
+      <div class="auth-success-sub" id="authSuccessSub">Redirecting you to complete your investment…</div>
+    </div>
+  </div>
+</div>
+
+<button id="phoneFab" onclick="openPhone()">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3" stroke-linecap="round"/></svg>
+  Mobile Preview
+</button>
+</body>
+</html>

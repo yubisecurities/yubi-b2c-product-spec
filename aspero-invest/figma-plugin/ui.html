@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0D1F16;
+    color: #fff;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .logo { font-size: 22px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 4px; }
+  .logo em { color: #4ADE80; font-style: normal; }
+  .tagline { font-size: 12px; color: rgba(255,255,255,.45); margin-bottom: 20px; }
+  .divider { border: none; border-top: 1px solid rgba(255,255,255,.08); margin: 16px 0; }
+  .section-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .8px; color: rgba(255,255,255,.35); margin-bottom: 10px;
+  }
+  .option {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; border-radius: 10px; margin-bottom: 6px; cursor: pointer;
+    border: 1.5px solid rgba(255,255,255,.07);
+    background: rgba(255,255,255,.03); transition: all .15s;
+  }
+  .option:hover { border-color: rgba(74,222,128,.3); background: rgba(74,222,128,.05); }
+  .option input[type=checkbox] { width: 16px; height: 16px; margin-top: 1px; accent-color: #27AE60; cursor: pointer; flex-shrink: 0; }
+  .option-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 2px; }
+  .option-desc { font-size: 11px; color: rgba(255,255,255,.4); line-height: 1.4; }
+  .btn-row { margin-top: 18px; display: flex; gap: 8px; }
+  .btn-gen {
+    flex: 1; padding: 12px; border-radius: 10px;
+    background: #27AE60; color: #fff; font-size: 14px; font-weight: 700;
+    border: none; cursor: pointer; transition: all .15s; font-family: inherit;
+  }
+  .btn-gen:hover { background: #22C55E; transform: translateY(-1px); }
+  .btn-gen:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-close {
+    padding: 12px 16px; border-radius: 10px;
+    background: rgba(255,255,255,.06); color: rgba(255,255,255,.5);
+    font-size: 14px; font-weight: 600; border: 1px solid rgba(255,255,255,.08);
+    cursor: pointer; font-family: inherit; transition: all .15s;
+  }
+  .btn-close:hover { background: rgba(255,255,255,.1); color: #fff; }
+  .status {
+    margin-top: 12px; font-size: 12px; min-height: 18px;
+    opacity: 0; transition: opacity .2s; word-break: break-word; line-height: 1.5;
+  }
+  .status.show { opacity: 1; }
+  .status.ok    { color: #4ADE80; }
+  .status.err   { color: #f87171; background: rgba(248,113,113,.08); padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; }
+  .all-toggle {
+    font-size: 11px; color: rgba(255,255,255,.35); background: none;
+    border: none; cursor: pointer; padding: 0; margin-bottom: 10px;
+    text-decoration: underline; font-family: inherit;
+  }
+  .all-toggle:hover { color: #4ADE80; }
+</style>
+</head>
+<body>
+  <div class="logo">aspero<em>·</em>invest</div>
+  <div class="tagline">Figma Design Generator</div>
+  <hr class="divider" />
+
+  <div class="section-label">Select Frames to Generate</div>
+  <button class="all-toggle" id="toggleAll">Select / Deselect All</button>
+
+  <label class="option">
+    <input type="checkbox" id="chk_mobileWidget" checked />
+    <div class="option-info">
+      <div class="option-title">Mobile – Main Widget</div>
+      <div class="option-desc">390 wide · Amount slider, duration, returns &amp; risk controls</div>
+    </div>
+  </label>
+  <label class="option">
+    <input type="checkbox" id="chk_mobileResults" checked />
+    <div class="option-info">
+      <div class="option-title">Mobile – Bond Results</div>
+      <div class="option-desc">390 wide · Top bond cards + earnings bar + View All row</div>
+    </div>
+  </label>
+  <label class="option">
+    <input type="checkbox" id="chk_mobileAllBonds" checked />
+    <div class="option-info">
+      <div class="option-title">Mobile – All Bonds Page</div>
+      <div class="option-desc">390 wide · Grouped by Great / Good / Fair match tier</div>
+    </div>
+  </label>
+  <label class="option">
+    <input type="checkbox" id="chk_noMatch" />
+    <div class="option-info">
+      <div class="option-title">Mobile – No Match State</div>
+      <div class="option-desc">390 wide · Empty state with contextual top picks + adjust criteria CTA</div>
+    </div>
+  </label>
+  <label class="option">
+    <input type="checkbox" id="chk_desktop" />
+    <div class="option-info">
+      <div class="option-title">Desktop – Full Page</div>
+      <div class="option-desc">1440×900 · Wide-screen layout with widget centred</div>
+    </div>
+  </label>
+  <label class="option">
+    <input type="checkbox" id="chk_components" />
+    <div class="option-info">
+      <div class="option-title">Component Samples</div>
+      <div class="option-desc">Bond card, pills, match badges, earnings bar</div>
+    </div>
+  </label>
+
+  <div class="btn-row">
+    <button class="btn-gen" id="btnGenerate">Generate Designs</button>
+    <button class="btn-close" id="btnClose">Close</button>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <script>
+    const CHECKS = ['chk_mobileWidget','chk_mobileResults','chk_mobileAllBonds','chk_noMatch','chk_desktop','chk_components'];
+
+    document.getElementById('toggleAll').addEventListener('click', () => {
+      const all = CHECKS.map(id => document.getElementById(id));
+      const anyUnchecked = all.some(c => !c.checked);
+      all.forEach(c => c.checked = anyUnchecked);
+    });
+
+    document.getElementById('btnGenerate').addEventListener('click', () => {
+      const options = {};
+      CHECKS.forEach(id => { options[id.replace('chk_','')] = document.getElementById(id).checked; });
+      if (!Object.values(options).some(Boolean)) { setStatus('Please select at least one frame.', 'err'); return; }
+
+      document.getElementById('btnGenerate').disabled = true;
+      document.getElementById('btnGenerate').textContent = 'Generating…';
+      setStatus('Creating frames in Figma…', 'ok');
+
+      parent.postMessage({ pluginMessage: { type: 'generate', options } }, '*');
+    });
+
+    document.getElementById('btnClose').addEventListener('click', () => {
+      parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+    });
+
+    // Listen for responses from code.js
+    window.onmessage = (e) => {
+      const msg = e.data && e.data.pluginMessage;
+      if (!msg) return;
+
+      if (msg.type === 'done') {
+        document.getElementById('btnGenerate').disabled = false;
+        document.getElementById('btnGenerate').textContent = 'Generate Again';
+        setStatus('Done! ' + msg.count + ' frame' + (msg.count !== 1 ? 's' : '') + ' created on the canvas.', 'ok');
+      }
+
+      if (msg.type === 'error') {
+        document.getElementById('btnGenerate').disabled = false;
+        document.getElementById('btnGenerate').textContent = 'Retry';
+        setStatus('Error: ' + msg.text, 'err');
+      }
+    };
+
+    function setStatus(text, cls) {
+      const el = document.getElementById('status');
+      el.className = 'status show ' + (cls || '');
+      el.textContent = text;
+    }
+  </script>
+</body>
+</html>
