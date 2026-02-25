@@ -1,7 +1,7 @@
 # Test Suite — Aspero Invest: Find Your Bond
 
 **Feature:** Personalised Bond Discovery & Recommendation
-**Ref:** PRD.md §6–12, feature.md
+**Ref:** feature.md
 **Last Updated:** February 2026
 
 ---
@@ -22,7 +22,7 @@
 | Auth Modal | Validation, context bar, success flow |
 | Navigation | Page transitions, back actions |
 | Responsive | 760px, 520px breakpoints |
-| Edge Cases | From PRD §10 |
+| Edge Cases | From feature.md §9 |
 | Accessibility | Keyboard nav, ARIA, focus management |
 
 ---
@@ -162,6 +162,9 @@ Example: `SLIDER-01`, `MATCH-03`, `AUTH-02`
 - No risk card is active
 - All 3 cards visible: Conservative, Moderate, Aggressive
 - Each card shows: icon, name, rating range description, return range badge
+- Rating ranges displayed: Conservative (AAA–AA-), Moderate (A+/A/A-), Aggressive (BBB+ & below)
+- Return range badge shows dynamic YTM range fetched from `GET /bonds/buckets`
+- If a bucket has `count == 0`, that card is greyed out with `"Currently unavailable"`
 
 ---
 
@@ -183,12 +186,15 @@ Example: `SLIDER-01`, `MATCH-03`, `AUTH-02`
 
 ---
 
-### RISK-04 — Return badge always visible
+### RISK-04 — Return badge shows dynamic YTM range
+**Precondition:** `GET /bonds/buckets` has returned data
 **Expected (for each card):**
-- Conservative: `7.5–10% p.a.`
-- Moderate: `10–13% p.a.`
-- Aggressive: `13–16% p.a.`
+- Badge shows `"ytmMin–ytmMax% p.a."` derived from live bond data — values are **not hardcoded**
+- If bucket has exactly 1 bond: badge shows single value e.g. `"13.5% p.a."`
+- If bucket has 0 bonds: card is greyed out, badge replaced with `"Currently unavailable"`
 - Badge is visible in both active and inactive states
+
+**Verification:** After a bond is added/removed from a bucket, reload the page and confirm the YTM range on the card reflects the updated `min(ret)`/`max(ret)` for that bucket
 
 ---
 
@@ -351,10 +357,9 @@ Example: `SLIDER-01`, `MATCH-03`, `AUTH-02`
 ### MATCH-08 — Great Match threshold (score ≥ 70)
 **Input:** Bond with dur=12, risk=moderate; selected `12M` + `Moderate`
 **Score:** 40 (dur exact) + 25 (risk exact) = **65 pts**
-**Expected:** Match badge = **"Good Match"** (note: 65 < 70, so just misses Great)
+**Expected:** Match badge = **"Good Match"** (65 < 70, just misses Great Match threshold)
 
-**Input:** Bond with dur=12, risk=moderate; selected `12M` + `Moderate`, and bond has rs=1
-**Note:** Score 65 is just below Great Match threshold per feature.md (≥70), but PRD says ≥55 for Great. Test against the implementation's actual threshold.
+**Note:** Max achievable score is 65 pts (40 + 25). The Great Match threshold is ≥ 70 per feature.md §7, meaning no bond can currently reach "Great Match". Confirm with engineering whether the threshold should be lowered to match the actual scoring ceiling.
 
 ---
 
@@ -643,7 +648,7 @@ Example: `SLIDER-01`, `MATCH-03`, `AUTH-02`
 1. Open sheet, do not change amount
 2. Tap `"Update Results"`
 **Expected:**
-- `"✓ Updated"` badge still animates (harmless, per PRD §10 edge case)
+- `"✓ Updated"` badge still animates (harmless, per feature.md §9 edge cases)
 
 ---
 
@@ -828,7 +833,7 @@ Example: `SLIDER-01`, `MATCH-03`, `AUTH-02`
 
 ---
 
-## 13. Edge Cases (from PRD §10)
+## 13. Edge Cases (from feature.md §9)
 
 ### EDGE-01 — User taps locked CTA repeatedly
 **Expected:** Toast does not stack; timer resets on each tap
@@ -855,6 +860,24 @@ Example: `SLIDER-01`, `MATCH-03`, `AUTH-02`
 ### EDGE-08 — User logs in then views more bonds
 **Steps:** Log in via Bond A, then tap "Invest Now" on Bond B
 **Expected:** No modal; direct `investNow()` call with Bond B's details
+
+---
+
+### EDGE-09 — Risk bucket has zero active bonds
+**Steps:** Simulate `GET /bonds/buckets` returning `count: 0` for Aggressive bucket
+**Expected:**
+- Aggressive card is greyed out
+- Card shows `"Currently unavailable"` in place of return badge
+- Card is not selectable (tap has no effect)
+- CTA does not count unavailable bucket bonds
+
+---
+
+### EDGE-10 — Risk bucket has exactly one bond
+**Steps:** Simulate `GET /bonds/buckets` returning `count: 1` for Moderate bucket (e.g. `ytmMin: 11.5, ytmMax: 11.5`)
+**Expected:**
+- Moderate card shows `"11.5% p.a."` (single value, not a range)
+- Card is selectable and behaves normally
 
 ---
 
@@ -915,7 +938,7 @@ See those files for detailed assertions covering all MATCH-* and SLIDER-* cases 
 - [ ] SHEET-01 through SHEET-07
 - [ ] AUTH-01 through AUTH-13
 - [ ] NAV-01 through NAV-07
-- [ ] EDGE-01 through EDGE-08
+- [ ] EDGE-01 through EDGE-10
 
 ### Automated (unit tests)
 - [ ] `npm test` passes all assertions in `tests/`
