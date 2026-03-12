@@ -3,11 +3,12 @@
 Aspero Amplitude → Slack Agent
 ================================
 Fetches 7-day rolling signup funnel data from Amplitude and posts a
-compact report to Slack with 3 sections:
+compact report to Slack with 4 sections:
 
-  1. Header — registrations, WoW, health
-  2. Device Tier Table — 4 milestones × 5 device tiers (with OTP/SSO split)
-  3. Insights & Alerts
+  1. Header — registrations, WoW, health, email method split
+  2. Yesterday Snapshot — vs 7-day average
+  3. Device Tier Table — 4 milestones × device tiers (with OTP/SSO split)
+  4. Needs Attention + Wins
 
 Funnel milestones (all fetched via Segmentation API by device_type):
   OTP ✓         = VERIFY_OTP_SUCCESS           (new + returning users)
@@ -15,7 +16,10 @@ Funnel milestones (all fetched via Segmentation API by device_type):
   Email ✓ SSO   = SSO_VERIFICATION_SUCCESS      (new users only, launched ~7d ago)
   Signup ✓      = SETUP_SECURE_PIN_SUCCESS      (new users only)
 
-API calls: 5 total (4 device_type breakdowns + 1 WoW prior period totals)
+API calls: 9 total
+  [1–4] device_type breakdown for 4 events (current 7d)
+  [5–8] event totals for 4 events (prior 7d, for WoW)
+  [9]   event totals for 4 events (yesterday, for daily snapshot)
 
 Usage:
   python3 agent.py [--dry-run]
@@ -33,7 +37,14 @@ from datetime import datetime, timedelta
 
 from amplitude import AmplitudeClient
 from config import MILESTONE_EVENTS
-from insights import compute_device_funnel_table, compute_wow_totals, generate_alerts_v2, get_overall_health_v2
+from insights import (
+    compute_device_funnel_table,
+    compute_wow_totals,
+    compute_yesterday_snapshot,
+    generate_alerts_v2,
+    generate_wins_v2,
+    get_overall_health_v2,
+)
 from slack import build_message_v2, send_to_slack
 
 
@@ -84,40 +95,51 @@ def run(dry_run: bool = False):
     # ── Date windows ──────────────────────────────────────────────────────
     cur_start, cur_end   = _date_window(7)
     prev_start, prev_end = _date_window(7, offset_days=7)
+    yest_str             = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
     label = _period_label(cur_start, cur_end)
     print(f"\n🗓  Period: {label}  ({cur_start} → {cur_end})")
+    print(f"📅  Yesterday: {yest_str}")
 
-    # ── Fetch — 5 API calls ───────────────────────────────────────────────
-    print("\n📡  [1/5] OTP verified by device type (VERIFY_OTP_SUCCESS)...")
+    # ── Fetch [1–4] — current 7d by device type ───────────────────────────
+    print("\n📡  [1/9] OTP verified by device type (VERIFY_OTP_SUCCESS)...")
     otp_by_device = client.get_event_by_device_type(
         MILESTONE_EVENTS["otp"], cur_start, cur_end
     )
     print(f"    total={_event_total(otp_by_device):,}  device_types={len(otp_by_device)}")
 
-    print("\n📡  [2/5] Email verified — OTP path (EMAIL_VERIFY_OTP_SUCCESS)...")
+    print("\n📡  [2/9] Email verified — OTP path (EMAIL_VERIFY_OTP_SUCCESS)...")
     email_otp_by_device = client.get_event_by_device_type(
         MILESTONE_EVENTS["email_otp"], cur_start, cur_end
     )
     print(f"    total={_event_total(email_otp_by_device):,}  device_types={len(email_otp_by_device)}")
 
-    print("\n📡  [3/5] Email verified — SSO path (SSO_VERIFICATION_SUCCESS)...")
+    print("\n📡  [3/9] Email verified — SSO path (SSO_VERIFICATION_SUCCESS)...")
     email_sso_by_device = client.get_event_by_device_type(
         MILESTONE_EVENTS["email_sso"], cur_start, cur_end
     )
     print(f"    total={_event_total(email_sso_by_device):,}  device_types={len(email_sso_by_device)}")
 
-    print("\n📡  [4/5] Registration complete by device type (SETUP_SECURE_PIN_SUCCESS)...")
+    print("\n📡  [4/9] Registration complete by device type (SETUP_SECURE_PIN_SUCCESS)...")
     signup_by_device = client.get_event_by_device_type(
         MILESTONE_EVENTS["signup"], cur_start, cur_end
     )
     print(f"    total={_event_total(signup_by_device):,}  device_types={len(signup_by_device)}")
 
-    print(f"\n📡  [5/5] WoW totals — prior period ({prev_start} → {prev_end})...")
+    # ── Fetch [5–8] — WoW prior period totals ─────────────────────────────
+    print(f"\n📡  [5–8] WoW totals — prior period ({prev_start} → {prev_end})...")
     prior_otp    = client.get_event_totals(MILESTONE_EVENTS["otp"],       prev_start, prev_end)
     prior_email  = client.get_event_totals(MILESTONE_EVENTS["email_otp"], prev_start, prev_end)
     prior_sso    = client.get_event_totals(MILESTONE_EVENTS["email_sso"], prev_start, prev_end)
     prior_signup = client.get_event_totals(MILESTONE_EVENTS["signup"],    prev_start, prev_end)
     print(f"    otp={prior_otp:,}  email_otp={prior_email:,}  email_sso={prior_sso:,}  signup={prior_signup:,}")
+
+    # ── Fetch [9] — Yesterday snapshot ────────────────────────────────────
+    print(f"\n📡  [9] Yesterday totals ({yest_str})...")
+    yest_otp    = client.get_event_totals(MILESTONE_EVENTS["otp"],       yest_str, yest_str)
+    yest_email  = client.get_event_totals(MILESTONE_EVENTS["email_otp"], yest_str, yest_str)
+    yest_sso    = client.get_event_totals(MILESTONE_EVENTS["email_sso"], yest_str, yest_str)
+    yest_signup = client.get_event_totals(MILESTONE_EVENTS["signup"],    yest_str, yest_str)
+    print(f"    otp={yest_otp:,}  email={yest_email:,}  sso={yest_sso:,}  signup={yest_signup:,}")
 
     # ── Analyse ───────────────────────────────────────────────────────────
     print("\n🔍  Generating insights...")
@@ -126,11 +148,11 @@ def run(dry_run: bool = False):
         otp_by_device, email_otp_by_device, email_sso_by_device, signup_by_device
     )
 
-    # Current totals
-    cur_otp    = _event_total(otp_by_device)
-    cur_email  = _event_total(email_otp_by_device)
-    cur_sso    = _event_total(email_sso_by_device)
-    cur_signup = _event_total(signup_by_device)
+    # Current 7d totals
+    cur_otp         = _event_total(otp_by_device)
+    cur_email       = _event_total(email_otp_by_device)
+    cur_sso         = _event_total(email_sso_by_device)
+    cur_signup      = _event_total(signup_by_device)
     cur_email_total = cur_email + cur_sso
 
     wow = compute_wow_totals(
@@ -138,11 +160,17 @@ def run(dry_run: bool = False):
         prior_otp, prior_email + prior_sso, prior_signup,
     )
 
-    sso_pct   = round(cur_sso / cur_email_total * 100, 1) if cur_email_total > 0 else 0
+    yesterday_snapshot = compute_yesterday_snapshot(
+        yest_otp, yest_email + yest_sso, yest_signup,
+        cur_otp, cur_email_total, cur_signup,
+    )
+
+    sso_pct   = round(cur_sso   / cur_email_total * 100, 1) if cur_email_total > 0 else 0
     email_pct = round(cur_email / cur_email_total * 100, 1) if cur_email_total > 0 else 0
 
     health = get_overall_health_v2(wow, device_table)
     alerts = generate_alerts_v2(wow, device_table, sso_pct)
+    wins   = generate_wins_v2(wow, device_table, sso_pct)
 
     print(f"\n  📊 Registrations:  {cur_signup:,}")
     print(f"  📧 Email method:   OTP {email_pct}% | SSO {sso_pct}%")
@@ -151,6 +179,10 @@ def run(dry_run: bool = False):
         print(f"  🚨 Alerts ({len(alerts)}):")
         for a in alerts:
             print(f"     • {a}")
+    if wins:
+        print(f"  ✅ Wins ({len(wins)}):")
+        for w in wins:
+            print(f"     • {w}")
 
     # ── Slack ─────────────────────────────────────────────────────────────
     payload = build_message_v2(
@@ -161,7 +193,9 @@ def run(dry_run: bool = False):
         cur_email_sso=cur_sso,
         cur_signup=cur_signup,
         wow=wow,
+        yesterday_snapshot=yesterday_snapshot,
         alerts=alerts,
+        wins=wins,
         health=health,
     )
 
