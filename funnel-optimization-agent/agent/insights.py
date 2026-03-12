@@ -449,57 +449,91 @@ def compute_wow_totals(
 
 
 def generate_alerts_v2(
-    wow:       Dict[str, Dict],
+    wow:          Dict[str, Dict],
     device_table: List[Dict],
-    sso_pct:   float,
+    sso_pct:      float,
 ) -> List[str]:
-    """Alerts for the v2 compact report."""
+    """Alerts for the v2 compact report, informed by business context (business_context.md)."""
     alerts: List[str] = []
 
-    # Registration WoW drop
+    # ── Registration WoW drop ─────────────────────────────────────────────
     reg = wow.get("signup", {})
     pct = reg.get("pct_change", 0)
     if pct <= -20:
         alerts.append(
-            f"🔴 *Registrations down {pct:.1f}% WoW* — "
+            f"🔴 *Registrations down {abs(pct):.1f}% WoW* — "
             f"{reg.get('previous', 0):,} → {reg.get('current', 0):,}"
         )
     elif pct <= -10:
         alerts.append(
-            f"⚠️ *Registrations down {pct:.1f}% WoW* — "
+            f"⚠️ *Registrations down {abs(pct):.1f}% WoW* — "
             f"{reg.get('previous', 0):,} → {reg.get('current', 0):,}"
         )
 
-    # Email→Signup conversion anomalies by tier
-    for row in device_table:
-        e2s = row["email_to_signup_pct"]
-        if row["email_total"] < 10:
-            continue   # too few users to be meaningful
-        if e2s < 70:
+    # ── Audience quality: Low+Mid Android dominating (target = Premium+iOS) ──
+    total_otp       = sum(r["otp"] for r in device_table)
+    low_mid_otp     = sum(r["otp"] for r in device_table
+                          if r["tier"] in ("low_android", "mid_android", "other_android"))
+    premium_ios_otp = sum(r["otp"] for r in device_table
+                          if r["tier"] in ("premium_android", "ios"))
+    if total_otp > 0:
+        low_mid_pct     = round(low_mid_otp     / total_otp * 100, 1)
+        premium_ios_pct = round(premium_ios_otp / total_otp * 100, 1)
+        if low_mid_pct > 60:
             alerts.append(
-                f"⚠️ *{row['label']}* Email→Signup conversion low: "
-                f"*{e2s}%*  ({row['email_total']:,} email verified, "
-                f"{row['signup']:,} registered)"
+                f"📊 Low & Mid Android = *{low_mid_pct}%* of signups — "
+                f"target audience (Premium Android + iOS) only *{premium_ios_pct}%*. "
+                f"Review acquisition channels for higher-intent users"
             )
 
-    # Low Android new-user ratio (OTP→Email)
+    # ── Premium Android + iOS: Email→PIN must stay >90% (high-value users) ──
+    for row in device_table:
+        if row["tier"] not in ("premium_android", "ios"):
+            continue
+        if row["email_total"] < 5:
+            continue
+        e2s = row["email_to_signup_pct"]
+        if e2s < 80:
+            alerts.append(
+                f"🔴 *{row['label']}* (target audience) Email→Signup only *{e2s}%* "
+                f"— high-intent users dropping at PIN setup "
+                f"({row['email_total']:,} email verified, {row['signup']:,} registered)"
+            )
+        elif e2s < 90:
+            alerts.append(
+                f"⚠️ *{row['label']}* (target audience) Email→Signup *{e2s}%* "
+                f"— below 90% target for high-value users"
+            )
+
+    # ── Other tiers: Email→Signup anomalies ───────────────────────────────
+    for row in device_table:
+        if row["tier"] in ("premium_android", "ios"):
+            continue
+        if row["email_total"] < 10:
+            continue
+        if row["email_to_signup_pct"] < 70:
+            alerts.append(
+                f"⚠️ *{row['label']}* Email→Signup low: *{row['email_to_signup_pct']}%* "
+                f"({row['email_total']:,} email verified, {row['signup']:,} registered)"
+            )
+
+    # ── Low Android new-user ratio ─────────────────────────────────────────
     for row in device_table:
         if row["tier"] == "low_android" and row["otp"] > 0:
-            new_ratio = row["otp_to_email_pct"]
-            if new_ratio < 10:
+            if row["otp_to_email_pct"] < 10:
                 alerts.append(
-                    f"💡 *Low Android* new signup ratio very low: "
-                    f"only *{new_ratio}%* of OTP verifications are new users"
+                    f"💡 *Low Android* OTP→Email only *{row['otp_to_email_pct']}%* — "
+                    f"mostly returning logins, negligible new user acquisition"
                 )
 
-    # SSO adoption note (informational, not alert)
+    # ── SSO adoption note ─────────────────────────────────────────────────
     if sso_pct > 5:
         alerts.append(
-            f"📈 *Google SSO adoption: {sso_pct}%* of email verifications "
-            f"(launched 7 days ago)"
+            f"📈 *Google SSO: {sso_pct}%* of email verifications "
+            f"(launched 7 days ago — target 40% within 30 days)"
         )
 
-    alerts.sort(key=lambda x: (0 if x.startswith("🔴") else 1))
+    alerts.sort(key=lambda x: (0 if x.startswith("🔴") else (1 if x.startswith("⚠️") else 2)))
     return alerts
 
 
@@ -508,15 +542,109 @@ def get_overall_health_v2(
     device_table: List[Dict],
 ) -> str:
     """Return 'healthy' | 'warning' | 'critical' for v2 report."""
-    reg_pct     = wow.get("signup", {}).get("pct_change", 0)
-    low_email2signup = [
-        r["email_to_signup_pct"]
+    reg_pct = wow.get("signup", {}).get("pct_change", 0)
+
+    # Critical if target audience (Premium+iOS) Email→PIN < 80%
+    premium_ios_critical = any(
+        r["email_to_signup_pct"] < 80 and r["email_total"] >= 5
         for r in device_table
+        if r["tier"] in ("premium_android", "ios")
+    )
+    low_e2s_tiers = [
+        r for r in device_table
         if r["email_total"] >= 10 and r["email_to_signup_pct"] < 70
     ]
 
-    if reg_pct <= -20 or len(low_email2signup) >= 3:
+    if reg_pct <= -20 or premium_ios_critical or len(low_e2s_tiers) >= 3:
         return "critical"
-    if reg_pct <= -10 or len(low_email2signup) >= 1:
+    if reg_pct <= -10 or len(low_e2s_tiers) >= 1:
         return "warning"
     return "healthy"
+
+
+def compute_yesterday_snapshot(
+    yest_otp:          int,
+    yest_email_total:  int,
+    yest_signup:       int,
+    cur_otp:           int,
+    cur_email_total:   int,
+    cur_signup:        int,
+) -> Dict:
+    """
+    Compare yesterday's metrics against the 7-day rolling average.
+    Returns a dict with 'registrations', 'otp_verified', 'email_conv' keys,
+    each containing: value, avg, status ('healthy'|'warning'|'critical').
+    """
+    avg_signup = cur_signup / 7
+    avg_otp    = cur_otp    / 7
+    avg_email_conv = round(cur_email_total / cur_otp * 100, 1) if cur_otp > 0 else 0
+
+    yest_email_conv = round(yest_email_total / yest_otp * 100, 1) if yest_otp > 0 else 0
+
+    def _status(val: float, avg: float) -> str:
+        if avg == 0:
+            return "healthy"
+        ratio = val / avg
+        return "healthy" if ratio >= 0.95 else ("warning" if ratio >= 0.82 else "critical")
+
+    return {
+        "registrations": {
+            "value":  yest_signup,
+            "avg":    round(avg_signup, 0),
+            "status": _status(yest_signup, avg_signup),
+        },
+        "otp_verified": {
+            "value":  yest_otp,
+            "avg":    round(avg_otp, 0),
+            "status": _status(yest_otp, avg_otp),
+        },
+        "email_conv": {
+            "value":  yest_email_conv,
+            "avg":    avg_email_conv,
+            "status": _status(yest_email_conv, avg_email_conv),
+        },
+    }
+
+
+def generate_wins_v2(
+    wow:          Dict[str, Dict],
+    device_table: List[Dict],
+    sso_pct:      float,
+) -> List[str]:
+    """Positive signals worth calling out — informed by business context."""
+    wins: List[str] = []
+
+    # Registration WoW growth
+    reg = wow.get("signup", {})
+    if reg.get("pct_change", 0) >= 5:
+        wins.append(
+            f"Registrations up *{reg['pct_change']:+.1f}%* WoW "
+            f"({reg['previous']:,} → {reg['current']:,})"
+        )
+
+    # SSO healthy adoption (launched recently)
+    if sso_pct >= 15:
+        wins.append(f"Google SSO at *{sso_pct}%* adoption — strong start since launch")
+
+    # Premium Android or iOS holding strong Email→PIN
+    for row in device_table:
+        if row["tier"] in ("premium_android", "ios") and row["email_total"] >= 5:
+            if row["email_to_signup_pct"] >= 90:
+                wins.append(
+                    f"*{row['label']}* Email→Signup at *{row['email_to_signup_pct']}%* "
+                    f"— target audience completing registration well"
+                )
+
+    # Premium+iOS growing share of registrations
+    total_signup    = sum(r["signup"] for r in device_table)
+    premium_ios_reg = sum(r["signup"] for r in device_table
+                          if r["tier"] in ("premium_android", "ios"))
+    if total_signup > 0:
+        pi_pct = round(premium_ios_reg / total_signup * 100, 1)
+        if pi_pct >= 40:
+            wins.append(
+                f"Premium Android + iOS = *{pi_pct}%* of registrations "
+                f"— strong target audience quality"
+            )
+
+    return wins
