@@ -58,11 +58,10 @@ def _period_label(start_str: str, end_str: str) -> str:
     return f"{start.strftime('%b %-d, %Y')} – {end.strftime('%b %-d, %Y')}"
 
 
-def _fetch_all(client: AmplitudeClient, start: str, end: str) -> dict:
-    """Fetch unique user counts for every funnel + failure event."""
-    all_events = [s["event"] for s in FUNNEL_STEPS] + FAILURE_EVENTS
+def _fetch_failure_counts(client: AmplitudeClient, start: str, end: str) -> dict:
+    """Fetch unique user counts for failure events (not in the funnel)."""
     counts = {}
-    for event in all_events:
+    for event in FAILURE_EVENTS:
         print(f"    {event}")
         counts[event] = client.get_event_totals(event, start, end)
     return counts
@@ -103,26 +102,33 @@ def run(dry_run: bool = False):
     label = _period_label(cur_start, cur_end)
     print(f"\n🗓  Period: {label}  ({cur_start} → {cur_end})")
 
-    # ── Fetch ─────────────────────────────────────────────────────────────
-    print("\n📡  Fetching current period from Amplitude...")
-    current_counts = _fetch_all(client, cur_start, cur_end)
+    funnel_event_names = [s["event"] for s in FUNNEL_STEPS]
 
-    print(f"\n📡  Fetching prior period ({prev_start} → {prev_end})...")
-    prior_counts = _fetch_all(client, prev_start, prev_end)
+    # ── Fetch — 4 API calls total ──────────────────────────────────────────
+    print("\n📡  [1/4] Funnel — current period (overall)...")
+    current_counts = client.get_funnel(funnel_event_names, cur_start, cur_end)
+    print(f"    {current_counts}")
 
-    print("\n📡  Fetching platform breakdown (SIGNIN_PAGE_VIEW + VERIFY_OTP_SUCCESS)...")
-    platform_views   = client.get_event_by_platform("SIGNIN_PAGE_VIEW",   cur_start, cur_end)
-    platform_verified = client.get_event_by_platform("VERIFY_OTP_SUCCESS", cur_start, cur_end)
-    print(f"    Views by platform:    {platform_views}")
-    print(f"    Verified by platform: {platform_verified}")
+    print(f"\n📡  [2/4] Funnel — prior period ({prev_start} → {prev_end})...")
+    prior_counts = client.get_funnel(funnel_event_names, prev_start, prev_end)
+
+    print("\n📡  [3/4] Funnel — current period by platform...")
+    platform_funnel = client.get_funnel_by_platform(funnel_event_names, cur_start, cur_end)
+    for plat, steps in platform_funnel.items():
+        views    = steps.get("SIGNIN_PAGE_VIEW", 0)
+        verified = steps.get("VERIFY_OTP_SUCCESS", 0)
+        conv     = round(verified / views * 100, 1) if views > 0 else 0
+        print(f"    {plat:<10}  views={views}  otp_verified={verified}  conv={conv}%")
+
+    print("\n📡  [4/4] Failure events (segmentation)...")
+    failure_counts = _fetch_failure_counts(client, cur_start, cur_end)
 
     # ── Analyse ───────────────────────────────────────────────────────────
     print("\n🔍  Generating insights...")
 
     funnel_steps      = compute_funnel(current_counts)
-    platform_insights = compute_platform_insights(platform_views, platform_verified)
+    platform_insights = compute_platform_insights(platform_funnel)
     wow               = compute_wow(current_counts, prior_counts)
-    failure_counts    = {e: current_counts.get(e, 0) for e in FAILURE_EVENTS}
     alerts            = generate_alerts(funnel_steps, platform_insights, failure_counts, wow)
     health            = get_overall_health(platform_insights, wow)
 

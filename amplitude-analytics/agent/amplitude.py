@@ -1,10 +1,16 @@
 """
 Amplitude Analytics Client
-Uses the Events Segmentation API (/api/2/events/segmentation) — the correct
-endpoint for getting daily unique user counts per event.
+
+Two APIs used:
+  1. Funnel API (/api/2/funnels) — for signup funnel conversion data.
+     Counts unique users who completed steps IN ORDER within the date window.
+     Matches what Amplitude's dashboard Funnel chart shows.
+     NOTE: do NOT pass the `n` (conversion window) param — it causes HTTP 400.
+
+  2. Segmentation API (/api/2/events/segmentation) — for individual event
+     counts (failure events, etc.) that aren't part of an ordered funnel.
 
 Auth: Basic auth (base64 of api_key:secret_key)
-Docs: https://www.docs.developers.amplitude.com/analytics/apis/event-segmentation-api/
 """
 
 import base64
@@ -72,6 +78,40 @@ class AmplitudeClient:
             if total > 0:
                 result[platform] = result.get(platform, 0) + total
 
+        return result
+
+    def get_funnel(
+        self, event_names: List[str], start: str, end: str
+    ) -> Dict[str, int]:
+        """
+        Run a funnel analysis and return {event_name: cumulative_count} per step.
+        Counts unique users who completed steps in order — matches the dashboard.
+        """
+        data = self._funnel(event_names, start, end, group_by=None)
+        if not data:
+            return {e: 0 for e in event_names}
+        raw = data[0].get("cumulativeRaw", [])
+        return {event_names[i]: raw[i] for i in range(min(len(event_names), len(raw)))}
+
+    def get_funnel_by_platform(
+        self, event_names: List[str], start: str, end: str
+    ) -> Dict[str, Dict[str, int]]:
+        """
+        Run a funnel analysis grouped by platform.
+        Returns {platform: {event_name: cumulative_count}}.
+        groupValue in the response gives the platform name ("Android", "iOS", "Web").
+        """
+        data = self._funnel(event_names, start, end, group_by="platform")
+        if not data:
+            return {}
+        result: Dict[str, Dict[str, int]] = {}
+        for item in data:
+            platform = item.get("groupValue") or "Unknown"
+            raw = item.get("cumulativeRaw", [])
+            result[str(platform)] = {
+                event_names[i]: raw[i]
+                for i in range(min(len(event_names), len(raw)))
+            }
         return result
 
     def get_daily_series(
@@ -149,6 +189,62 @@ class AmplitudeClient:
 
             except Exception as e:
                 print(f"    ⚠️  {event_name}: {e}")
+                return None
+
+        return None
+
+    def _funnel(
+        self,
+        event_names: List[str],
+        start: str,
+        end: str,
+        group_by: Optional[str],
+        retries: int = 2,
+    ) -> Optional[List[Dict]]:
+        """
+        Call the Amplitude Funnel Analysis API.
+        IMPORTANT: do NOT pass `n` (conversion window param) — it causes HTTP 400.
+        Returns the `data` list from the response, or None on failure.
+        """
+        # Funnel API takes one `e` param per step as a list of tuples
+        params: List = [("e", json.dumps({"event_type": e})) for e in event_names]
+        params += [("start", start), ("end", end)]
+        if group_by:
+            params.append(("g", group_by))
+
+        for attempt in range(retries + 1):
+            try:
+                resp = requests.get(
+                    f"{self.BASE_URL}/funnels",
+                    params=params,
+                    headers=self.headers,
+                    timeout=30,
+                )
+
+                if resp.status_code == 200:
+                    return resp.json().get("data", [])
+
+                if resp.status_code == 429:
+                    wait = 2 ** attempt
+                    print(f"    ⏳ Rate limited, retrying in {wait}s...")
+                    time.sleep(wait)
+                    continue
+
+                print(
+                    f"    ⚠️  Funnel API [{group_by or 'overall'}]: "
+                    f"HTTP {resp.status_code} — {resp.text[:120]}"
+                )
+                return None
+
+            except requests.exceptions.Timeout:
+                print(f"    ⚠️  Funnel API: request timed out (attempt {attempt + 1})")
+                if attempt < retries:
+                    time.sleep(1)
+                    continue
+                return None
+
+            except Exception as e:
+                print(f"    ⚠️  Funnel API error: {e}")
                 return None
 
         return None

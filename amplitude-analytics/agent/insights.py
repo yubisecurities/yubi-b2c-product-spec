@@ -54,20 +54,22 @@ def compute_funnel(event_counts: Dict[str, int]) -> List[Dict]:
 # ---------------------------------------------------------------------------
 
 def compute_platform_insights(
-    platform_views: Dict[str, int],
-    platform_verifications: Dict[str, int],
+    platform_funnel: Dict[str, Dict[str, int]],
 ) -> Dict[str, Dict]:
     """
     For each platform (Android / iOS / Web):
-      - views, verified, conversion %
+      - views (SIGNIN_PAGE_VIEW), verified (VERIFY_OTP_SUCCESS), conversion %
       - delta vs historical baseline
       - health status: healthy | warning | alert
+
+    platform_funnel: {platform: {event_name: cumulative_count}} from Funnel API.
     """
     results = {}
 
     for platform in ["Android", "iOS", "Web"]:
-        views    = platform_views.get(platform, 0)
-        verified = platform_verifications.get(platform, 0)
+        steps    = platform_funnel.get(platform, {})
+        views    = steps.get("SIGNIN_PAGE_VIEW", 0)
+        verified = steps.get("VERIFY_OTP_SUCCESS", 0)
         conv     = round(verified / views * 100, 1) if views > 0 else 0.0
 
         baseline  = PLATFORM_BASELINES.get(platform, 50.0)
@@ -82,12 +84,14 @@ def compute_platform_insights(
             status = "healthy"
 
         results[platform] = {
-            "views":              views,
-            "verified":           verified,
-            "conversion":         conv,
-            "baseline":           baseline,
+            "views":               views,
+            "verified":            verified,
+            "conversion":          conv,
+            "baseline":            baseline,
             "delta_from_baseline": round(conv - baseline, 1),
-            "status":             status,
+            "status":              status,
+            # Full per-step counts for this platform (useful in Slack for registrations)
+            "steps":               steps,
         }
 
     return results
