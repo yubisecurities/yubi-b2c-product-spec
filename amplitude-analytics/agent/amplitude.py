@@ -114,6 +114,37 @@ class AmplitudeClient:
             }
         return result
 
+    def get_event_by_device_type(
+        self, event_name: str, start: str, end: str
+    ) -> Dict[str, int]:
+        """
+        Return unique users for `event_name` broken down by device_type.
+        device_type returns full device model strings:
+          e.g. "Apple iPhone 15", "Samsung Galaxy A52", "Windows", "Mac"
+        """
+        data = self._segmentation(event_name, start, end, group_by="device_type")
+        if data is None:
+            return {}
+
+        series = data.get("series", [])
+        labels = data.get("seriesLabels", [])
+
+        result: Dict[str, int] = {}
+        for i, label_group in enumerate(labels):
+            if i >= len(series):
+                continue
+            if isinstance(label_group, list):
+                device = str(label_group[0]) if label_group else "Unknown"
+            else:
+                device = str(label_group) if label_group is not None else "Unknown"
+            if not device or device in ("None", "(none)"):
+                continue
+            total = sum(v for v in series[i] if v is not None)
+            if total > 0:
+                result[device] = result.get(device, 0) + total
+
+        return result
+
     def get_daily_series(
         self, event_name: str, start: str, end: str
     ) -> List[int]:
