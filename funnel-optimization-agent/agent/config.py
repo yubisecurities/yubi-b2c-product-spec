@@ -129,6 +129,7 @@ DEVICE_TIER_LABELS = {
     "premium_android": "Premium Android",
     "ios":             "iOS",
     "web":             "Web",
+    "unknown_android": "Unknown Android†",
     "other_android":   "Other Android",
     "other":           "Other",
 }

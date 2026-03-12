@@ -442,4 +442,14 @@ def _milestone_table(
     lines.append(sep)
     lines.append(_fmt_row("TOTAL", cur_otp, cur_email_otp, cur_email_sso, cur_signup, o2e_total, e2p_total))
 
-    return "```\n" + "\n".join(lines) + "\n```"
+    has_unknown = any(r["tier"] == "unknown_android" for r in device_table)
+    table_text  = "```\n" + "\n".join(lines) + "\n```"
+    if has_unknown:
+        table_text += (
+            "\n_† Unknown Android: device model string not matched by our classifier. "
+            "Most likely Low tier — flagship (Galaxy S, Pixel, OnePlus flagship) and popular "
+            "mid-range (Galaxy A/M, Redmi Note, Realme) models are explicitly listed. "
+            "If a device doesn't match any known pattern, it is almost certainly not a premium "
+            "or mid-range device._"
+        )
+    return table_text
