@@ -114,38 +114,45 @@ S22" matching a mid pattern before hitting the premium pattern.
 
 ## device_family vs device_type for Funnel Grouping
 
-### Decision: Group funnels by device_family (not device_type)
-**Date:** Mar 2025
-**Status:** ✅ Implemented
+### Decision: Use device_type (not device_family) — improve classifier to handle hardware codes
+**Date:** Mar 2026
+**Status:** ✅ Implemented (reverted after live failure)
 
-**Problem:** Initial implementation grouped the Funnel API by `device_type`. This caused
-a very large Unknown Android bucket because `device_type` returns raw hardware model codes:
+**Background:** The Amplitude UI shows "Device Family" as a breakdown option, returning
+marketing names like "Samsung Galaxy S22". We assumed the API parameter for this was
+`device_family` and switched the Funnel API `group_by` to it.
 
-| `device_type` (raw)  | Actual device          |
-|----------------------|------------------------|
-| `SM-S901B`           | Samsung Galaxy S22     |
-| `SM-A525F`           | Samsung Galaxy A52s    |
-| `2201116TG`          | Xiaomi Redmi Note 11   |
-| `RMX3511`            | Realme 9 SE            |
+**What happened:** `device_family` is NOT a valid Amplitude Funnel API `g` parameter.
+The API returned HTTP 200 with empty data — no error, just silently zero results.
+This caused the entire report to show 0 signups, 0 OTP, no device table.
 
-None of these hardware codes match the marketing-name patterns in `DEVICE_TIER_PATTERNS`
-(e.g. `"samsung s22"`, `"redmi note"`, `"realme 9"`), so almost every Android device
-fell into `unknown_android`.
+**Correct parameter:** `device_type` is the valid `g` parameter for the Funnel API.
+The Amplitude UI's "Device Family" display is a UI-layer enrichment, not a separate API property.
 
-**Fix:** Switch Funnel API `group_by` parameter from `device_type` → `device_family`.
+**`device_type` returns hardware model codes** for many events:
 
-`device_family` returns the same marketing names used in the Amplitude dashboard
-and that `DEVICE_TIER_PATTERNS` was designed to match:
-- `Samsung Galaxy S22` → matches `"samsung s22"` → Premium ✓
-- `Samsung Galaxy A52` → matches `"samsung a"` → Mid ✓
-- `Redmi Note 11` → matches `"redmi note"` → Mid ✓
-- `Realme 9` → matches `"realme 9"` → Mid ✓
+| `device_type` from API | Actual device          |
+|------------------------|------------------------|
+| `SM-S901B`             | Samsung Galaxy S22     |
+| `SM-A525F`             | Samsung Galaxy A52s    |
+| `2201116TG`            | Xiaomi Redmi Note 11   |
+| `RMX3511`              | Realme 9 SE            |
 
-**Why this wasn't caught earlier:** The Amplitude UI was always using device family
-for the breakdown (user confirmed). The API implementation incorrectly used `device_type`.
+**Fix:** Keep `device_type` in the API call. Add hardware model code patterns to
+`classify_device_type()` in `insights.py` BEFORE the marketing-name patterns:
 
-**Remaining Unknown Android after fix:** Genuinely obscure OEMs (Itel, no-name Android)
-whose device family names don't match any known pattern — not misclassified Samsungs/Xiaomis.
+| Code pattern          | Tier            | Examples                          |
+|-----------------------|-----------------|-----------------------------------|
+| `SM-S*`, `SM-F*`      | Premium Android | Galaxy S22/S23/S24, Fold, Flip    |
+| `SM-A*`, `SM-M*`      | Mid Android     | Galaxy A52, M32                   |
+| `SM-J*`               | Low Android     | Galaxy J2/J7                      |
+| `^2[012]\d{8,}`       | Mid Android     | Redmi Note 11 (2201116TG), POCO X |
+| `RMX\d{4}`            | Mid Android     | Realme 9/10/11 (RMX3511)          |
+| `CPH\d{4}`            | Mid Android     | OPPO A/F series                   |
+| `V[12]\d{3}`/`T\d{4}` | Mid Android     | Vivo V/T series                   |
+
+**Remaining Unknown Android:** Devices that match no hardware code pattern AND no
+marketing-name pattern — genuinely obscure OEMs or unusual SDK configurations.
 
 ---
 

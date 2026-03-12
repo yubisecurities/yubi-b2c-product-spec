@@ -7,6 +7,7 @@ Insight generation — converts raw Amplitude counts into:
   - Anomaly alerts and recommendations
 """
 
+import re
 from datetime import date
 from typing import Dict, List
 from config import (
@@ -107,6 +108,10 @@ def compute_platform_insights(
 def classify_device_type(device_label: str) -> str:
     """
     Classify a device_type string into a tier bucket.
+
+    Handles both marketing names ("Samsung Galaxy S22") and raw hardware model
+    codes returned by the Amplitude API ("SM-S901B", "2201116TG", "RMX3511").
+
     Checks premium → mid → low to avoid mis-classifying high-end devices.
     """
     lower = device_label.lower()
@@ -117,12 +122,39 @@ def classify_device_type(device_label: str) -> str:
     if any(k in lower for k in ("windows", "mac", "linux", "chrome os", "chromebook")):
         return "web"
 
-    # Android tiers — most specific first
+    # ── Hardware model code patterns (raw codes from Amplitude API) ───────
+    # Samsung SM-* codes
+    if re.match(r"^sm-s\d", lower) or re.match(r"^sm-f\d", lower):
+        return "premium_android"   # Galaxy S-series (S8/S9/S21/S22/S23/S24/S25), Fold/Flip
+    if re.match(r"^sm-a\d", lower) or re.match(r"^sm-m\d", lower):
+        return "mid_android"       # Galaxy A-series, M-series
+    if re.match(r"^sm-j\d", lower):
+        return "low_android"       # Galaxy J-series (budget)
+    if re.match(r"^sm-", lower):
+        return "unknown_android"   # Other Samsung (older G-series, etc.)
+
+    # Xiaomi / Redmi / POCO numeric codes (10–11 digits, start with 21 or 22)
+    if re.match(r"^2[012]\d{8,}", lower):
+        return "mid_android"       # Redmi Note / POCO M/X series
+
+    # Realme RMX* codes
+    if re.match(r"^rmx\d{4}", lower):
+        return "mid_android"       # Realme (C-series is minority; default mid)
+
+    # OPPO CPH* codes
+    if re.match(r"^cph\d{4}", lower):
+        return "mid_android"       # OPPO A/F series
+
+    # Vivo V*/T* codes
+    if re.match(r"^v[12]\d{3}", lower) or re.match(r"^t[12]\d{3}", lower):
+        return "mid_android"       # Vivo V-series, T-series
+
+    # ── Marketing name patterns ────────────────────────────────────────────
     for tier in ("premium_android", "mid_android", "low_android"):
         if any(kw in lower for kw in DEVICE_TIER_PATTERNS[tier]):
             return tier
 
-    # Known vendor but unmatched model → cannot determine tier
+    # Known vendor by name but unmatched model → unknown
     android_hints = (
         "samsung", "redmi", "xiaomi", "oneplus", "oppo", "vivo",
         "realme", "poco", "motorola", "moto", "asus", "lenovo",
@@ -131,7 +163,6 @@ def classify_device_type(device_label: str) -> str:
     if any(k in lower for k in android_hints):
         return "unknown_android"
 
-    # Generic "android" string or unknown OEM → unknown_android
     return "unknown_android"
 
 

@@ -114,22 +114,25 @@ class AmplitudeClient:
             }
         return result
 
-    def get_funnel_by_device_family(
+    def get_funnel_by_device_type(
         self, event_names: List[str], start: str, end: str
     ) -> Dict[str, List[int]]:
         """
-        Run a funnel analysis grouped by device_family.
-        Returns {device_family: [step1_count, step2_count, step3_count, ...]}.
+        Run a funnel analysis grouped by device_type.
+        Returns {device_type: [step1_count, step2_count, step3_count, ...]}.
 
-        Uses device_family (not device_type) because device_family returns marketing
-        names like "Samsung Galaxy S22", "Redmi Note 11" — matching DEVICE_TIER_PATTERNS.
-        device_type returns raw hardware model codes (SM-S901B, 2201116TG) which the
-        patterns cannot match, leading to a large Unknown Android bucket.
+        NOTE: device_type is the correct Amplitude API group_by parameter.
+        device_family is shown in the Amplitude UI but is NOT a valid API parameter —
+        it returns empty data from the Funnel API.
+
+        device_type can return either marketing names ("Samsung Galaxy S22") or raw
+        hardware model codes ("SM-S901B") depending on SDK version and event source.
+        classify_device_type() handles both formats.
 
         cumulativeRaw[i] = users who completed steps 0..i in order (same user).
         Guarantees: cumulativeRaw[i+1] <= cumulativeRaw[i] — so step ratios never exceed 100%.
         """
-        data = self._funnel(event_names, start, end, group_by="device_family")
+        data = self._funnel(event_names, start, end, group_by="device_type")
         if not data:
             return {}
         result: Dict[str, List[int]] = {}
@@ -142,15 +145,14 @@ class AmplitudeClient:
                 result[str(device)] = [v or 0 for v in raw]
         return result
 
-    def get_event_by_device_family(
+    def get_event_by_device_type(
         self, event_name: str, start: str, end: str
     ) -> Dict[str, int]:
         """
-        Return unique users for `event_name` broken down by device_family.
-        device_family returns marketing names: "Samsung Galaxy A52", "Redmi Note 11", "iPhone 15".
-        Preferred over device_type which returns raw hardware codes (SM-A525F, 2201116TG).
+        Return unique users for `event_name` broken down by device_type.
+        device_type is the correct Amplitude API parameter (device_family is UI-only).
         """
-        data = self._segmentation(event_name, start, end, group_by="device_family")
+        data = self._segmentation(event_name, start, end, group_by="device_type")
         if data is None:
             return {}
 

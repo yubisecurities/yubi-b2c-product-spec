@@ -110,27 +110,29 @@ def run(dry_run: bool = False):
     print(f"\n🗓  Period: {label}  ({cur_start} → {cur_end})")
     print(f"📅  Yesterday: {yest_str}")
 
-    # ── Fetch [1–2] — current 7d funnels by device family ────────────────
+    # ── Fetch [1–2] — current 7d funnels by device type ──────────────────
     # 4-step funnels: OTP → EMAIL_PAGE_VIEW → Email/SSO → Signup
     # EMAIL_PAGE_VIEW (step[1]) is a proxy for new-user OTPs (99.5% match with
     # first-time VERIFY_OTP_SUCCESS) — enables accurate New% and Em% calculations.
-    # device_family used (not device_type) — returns marketing names ("Samsung Galaxy S22")
-    # that match DEVICE_TIER_PATTERNS; device_type returns hardware codes (SM-S901B).
-    print("\n📡  [1/7] OTP → Email Page → Email OTP → Signup funnel by device family...")
-    otp_email_funnel = client.get_funnel_by_device_family(
+    # device_type is the correct Amplitude API group_by parameter.
+    # device_family appears in the Amplitude UI but is NOT a valid API parameter —
+    # the Funnel API returns empty data for it. classify_device_type() handles
+    # both marketing names and raw hardware codes (SM-S901B, 2201116TG, RMX3511).
+    print("\n📡  [1/7] OTP → Email Page → Email OTP → Signup funnel by device type...")
+    otp_email_funnel = client.get_funnel_by_device_type(
         [MILESTONE_EVENTS["otp"], MILESTONE_EVENTS["email_page"],
          MILESTONE_EVENTS["email_otp"], MILESTONE_EVENTS["signup"]],
         cur_start, cur_end,
     )
-    print(f"    device_families={len(otp_email_funnel)}")
+    print(f"    device_types={len(otp_email_funnel)}")
 
-    print("\n📡  [2/7] OTP → Email Page → Email SSO → Signup funnel by device family...")
-    otp_sso_funnel = client.get_funnel_by_device_family(
+    print("\n📡  [2/7] OTP → Email Page → Email SSO → Signup funnel by device type...")
+    otp_sso_funnel = client.get_funnel_by_device_type(
         [MILESTONE_EVENTS["otp"], MILESTONE_EVENTS["email_page"],
          MILESTONE_EVENTS["email_sso"], MILESTONE_EVENTS["signup"]],
         cur_start, cur_end,
     )
-    print(f"    device_families={len(otp_sso_funnel)}")
+    print(f"    device_types={len(otp_sso_funnel)}")
 
     # ── Fetch [3–6] — WoW prior period totals ─────────────────────────────
     print(f"\n📡  [3–6] WoW totals — prior period ({prev_start} → {prev_end})...")
