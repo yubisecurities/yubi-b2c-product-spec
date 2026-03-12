@@ -587,24 +587,18 @@ def generate_alerts_v2(
                     f"mostly returning logins, negligible new user acquisition"
                 )
 
-    # ── SSO adoption note ─────────────────────────────────────────────────
-    # SSO is a BETTER path (4 steps, 89.6% completion vs 6 steps, 69.6% for OTP).
-    # Low adoption = users defaulting to the harder path, not a neutral choice.
-    if sso_pct > 5:
+    # ── SSO adoption gap (Needs Attention when below 40% target) ─────────
+    # SSO quality is always good (89.6% completion). Low adoption = users
+    # defaulting to the harder OTP path — a UI discovery problem to fix.
+    if sso_pct > 0:
         days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
         otp_pct        = round(100 - sso_pct, 1)
-        if days_since_sso <= 30:
+        if days_since_sso <= 30 and sso_pct < 40:
             days_remaining = 30 - days_since_sso
             alerts.append(
-                f"📈 *Google SSO: {sso_pct}%* choosing the faster path "
-                f"(4 steps, 89.6% completion) — *{otp_pct}%* still on OTP "
-                f"(6 steps, 69.6% completion) · day {days_since_sso}, "
-                f"target 40% in {days_remaining}d"
-            )
-        else:
-            alerts.append(
-                f"📈 *Google SSO: {sso_pct}%* on the faster path "
-                f"(4 steps, 89.6% completion) — {otp_pct}% still on OTP (6 steps)"
+                f"⚠️ *SSO adoption: {sso_pct}%* — {otp_pct}% of users still on OTP "
+                f"(6 steps, 69.6% completion vs SSO's 89.6%) · "
+                f"increase Google button prominence on email page to reach 40% in {days_remaining}d"
             )
 
     alerts.sort(key=lambda x: (0 if x.startswith("🔴") else (1 if x.startswith("⚠️") else 2)))
@@ -696,18 +690,20 @@ def generate_wins_v2(
             f"({reg['previous']:,} → {reg['current']:,})"
         )
 
-    # SSO healthy adoption — frame as quality win, not just adoption stat
-    if sso_pct >= 15:
+    # SSO quality win — always show when any users are on SSO.
+    # 89.6% completion vs 69.6% OTP is a UX quality win regardless of adoption %.
+    # If adoption >= 40%, also celebrate hitting the target.
+    if sso_pct > 0:
         days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
-        if days_since_sso <= 30:
+        if sso_pct >= 40:
             wins.append(
-                f"*{sso_pct}%* of users choosing SSO — the better path "
-                f"(4 steps, 89.6% completion vs 69.6% OTP) · day {days_since_sso} since launch"
+                f"✅ *SSO at {sso_pct}%* — 40% target reached · "
+                f"SSO users convert at 89.6% vs 69.6% for OTP (4 steps vs 6)"
             )
         else:
             wins.append(
-                f"*{sso_pct}%* of users on SSO — "
-                f"4 steps, 89.6% completion vs 69.6% for OTP"
+                f"SSO users convert at *89.6%* vs 69.6% for OTP — "
+                f"{sso_pct}% of users already on the faster path (4 steps vs 6)"
             )
 
     # Premium Android or iOS holding strong Email→PIN

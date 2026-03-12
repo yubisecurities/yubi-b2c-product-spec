@@ -112,10 +112,18 @@ SECTION 6 — NEEDS ATTENTION TODAY
 Maximum 3 bullets. Each bullet must follow this structure:
 [emoji] [What is wrong] — [Why it matters for Aspero's growth] — [Specific action for today]
 Never write "review X" as the action. Write "check Y and adjust Z" instead.
+SSO RULE: If sso_available is true and sso_pct < 40% (within 30-day window), always include
+an SSO adoption bullet: "⚠️ Only X% choosing SSO — Y% still on the 6-step OTP flow (69.6%
+completion vs 89.6% SSO) — increase Google button size/prominence on email page and add
+'faster sign-in' label to test if discovery is the bottleneck"
 
 SECTION 7 — WINS
 Maximum 3 bullets. Each win must include a "so what" — why does this win matter
 strategically, not just operationally?
+SSO RULE: If sso_available is true and sso_pct > 0, always include SSO quality as a win:
+"SSO users convert at 89.6% vs 69.6% for OTP — X% of users are already on the better path.
+Every percentage point shift from OTP to SSO reduces email verification abandonment." If
+sso_pct >= 40%, lead with "40% target reached" and frame it as a UX milestone.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FORMATTING RULES FOR SLACK
