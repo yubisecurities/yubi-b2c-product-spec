@@ -6,6 +6,59 @@ Updated incrementally — newest entries at the top.
 
 ---
 
+## EMAIL_PAGE_VIEW as New-User OTP Proxy → Accurate New% and Em% Columns
+
+### Decision: Replace single OTP→Em% with New% + Em% using EMAIL_PAGE_VIEW as denominator
+**Date:** Mar 2025
+**Status:** ✅ Implemented
+
+**The problem with the old OTP→Em% metric:**
+```
+Old:  OTP→Em% = EMAIL_VERIFIED / VERIFY_OTP_SUCCESS
+                                  ↑ includes returning users → denominator inflated → ~42% (misleading)
+```
+`VERIFY_OTP_SUCCESS` fires for every login (new + returning users), but `EMAIL_VERIFIED`
+only fires for new users. Dividing new-user completions by a mixed denominator produces
+a ratio that has no clear meaning and consistently reads low (~42% vs ~75% in dashboard).
+
+**The insight (confirmed in Amplitude):**
+`EMAIL_PAGE_VIEW` matches `VERIFY_OTP_SUCCESS (Event Historical Count = 1)` at **99.5%**.
+Post-OTP, all new users are routed to the email verification page — both those who will
+complete via OTP and those who will use Google SSO (SSO flow: user lands on email page →
+taps "Sign in with Google" → `SSO_VERIFICATION_SUCCESS`). `EMAIL_PAGE_VIEW` fires for
+both paths, making it a valid denominator for all new-user email conversions.
+
+**Why this works via API:**
+`EMAIL_PAGE_VIEW` is a standard event with no special filter needed — unlike
+`Event Historical Count = 1` which is a UI-only filter unavailable in the Amplitude API.
+
+**Solution: 4-step funnels + two conversion columns:**
+
+Funnels changed from 3-step to 4-step (no extra API calls):
+```
+Funnel 1: OTP → EMAIL_PAGE_VIEW → EMAIL_VERIFY_OTP_SUCCESS → SIGNUP
+Funnel 2: OTP → EMAIL_PAGE_VIEW → SSO_VERIFICATION_SUCCESS  → SIGNUP
+```
+
+Old single column replaced by two meaningful columns:
+| Column | Formula | What it tells you |
+|--------|---------|-------------------|
+| `New%`  | `EMAIL_PAGE_VIEW / OTP` | % of all mobile verifications that are new users (acquisition quality) |
+| `Em%`   | `EMAIL_VERIFIED / EMAIL_PAGE_VIEW` | Of new users who started email verification, what % completed it (UX friction signal) |
+| `PIN%`  | `SIGNUP / EMAIL_VERIFIED` | Email-verified → signup completion (unchanged) |
+
+**Expected values after fix:**
+- `New%` ≈ 25–40% (most OTPs are returning users logging in)
+- `Em%` ≈ 72–85% (matches Amplitude dashboard numbers)
+- `PIN%` ≈ 90%+ for Premium+iOS (stays the same as before)
+
+**Why Option B (separate columns) over Option A (silent denominator swap):**
+The two metrics answer fundamentally different questions. Collapsing them into one
+number hides useful signal. `New%` tells you about acquisition mix; `Em%` tells you
+about email UX friction. A PM needs both separately.
+
+---
+
 ## Device Tier Classification
 
 ### Decision: Show "Unknown Android†" as a separate row with footnote
@@ -184,6 +237,6 @@ ad-hoc runs or testing.
 |---|----------|-------|
 | 1 | Expand `DEVICE_TIER_PATTERNS` to classify more models | Would reduce the Unknown Android bucket. Could periodically audit the `unknown_android` rows in Amplitude to find common unclassified models and add them |
 | 2 | Post-KYC funnel tracking | Current funnel is pre-KYC (registration only). KYC completion → investment is the next funnel stage not yet tracked |
-| 3 | OTP "new users only" via API | `Event Historical Count = 1` not available in API — workaround would be a user-level query (expensive) |
+| 3 | ~~OTP "new users only" via API~~ | ✅ Resolved — `EMAIL_PAGE_VIEW` matches first-time OTP at 99.5% and is accessible via API. Used as denominator for `New%` column. See EMAIL_PAGE_VIEW section above. |
 | 4 | City/geography breakdown | Business context says Metro + Tier-1 is target; could add city-level breakdown if Amplitude has geo data |
 | 5 | ~~SSO adoption 30-day tracker~~ | ✅ Resolved — `SSO_LAUNCH_DATE = date(2025, 3, 7)` in config.py; days since launch and days remaining auto-computed in alerts/wins |

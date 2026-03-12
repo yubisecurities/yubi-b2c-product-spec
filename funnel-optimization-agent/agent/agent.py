@@ -12,6 +12,9 @@ compact report to Slack with 4 sections:
 
 Funnel milestones fetched via Funnel API (same-user tracking) by device_type:
   OTP ✓         = VERIFY_OTP_SUCCESS           (new + returning users)
+  Email Page    = EMAIL_PAGE_VIEW               (proxy for new-user OTPs; 99.5% match with
+                                                 first-time VERIFY_OTP_SUCCESS — used as
+                                                 denominator for accurate New% conversion)
   Email ✓ OTP   = EMAIL_VERIFY_OTP_SUCCESS      (new users only)
   Email ✓ SSO   = SSO_VERIFICATION_SUCCESS      (new users only, launched 7 Mar 2025)
   Signup ✓      = SETUP_SECURE_PIN_SUCCESS      (new users only)
@@ -19,8 +22,12 @@ Funnel milestones fetched via Funnel API (same-user tracking) by device_type:
 Using Funnel API for current period ensures Em→PIN conversion is always ≤100%
 (same user tracked across steps — timing boundary artefacts eliminated).
 
+4-step funnels split OTP→Em% into two meaningful metrics:
+  New%  = EMAIL_PAGE_VIEW / OTP           (what % of OTPs are new users)
+  Em%   = EMAIL_VERIFIED  / EMAIL_PAGE_VIEW  (of new users, what % complete email verification)
+
 API calls: 7 total
-  [1–2] device_type funnel (OTP→Email→Signup, OTP→SSO→Signup) for current 7d
+  [1–2] device_type funnel (OTP→EmailPage→Email→Signup, OTP→EmailPage→SSO→Signup) for current 7d
   [3–6] event totals for 4 events (prior 7d, for WoW)
   [7]   event totals for 4 events (yesterday, for daily snapshot)
 
@@ -104,18 +111,21 @@ def run(dry_run: bool = False):
     print(f"📅  Yesterday: {yest_str}")
 
     # ── Fetch [1–2] — current 7d funnels by device type ──────────────────
-    # Using Funnel API (same-user tracking) instead of independent segmentation.
-    # cumulativeRaw[i+1] <= cumulativeRaw[i] by definition → Em→PIN always ≤100%.
-    print("\n📡  [1/7] OTP → Email OTP → Signup funnel by device type...")
+    # 4-step funnels: OTP → EMAIL_PAGE_VIEW → Email/SSO → Signup
+    # EMAIL_PAGE_VIEW (step[1]) is a proxy for new-user OTPs (99.5% match with
+    # first-time VERIFY_OTP_SUCCESS) — enables accurate New% and Em% calculations.
+    print("\n📡  [1/7] OTP → Email Page → Email OTP → Signup funnel by device type...")
     otp_email_funnel = client.get_funnel_by_device_type(
-        [MILESTONE_EVENTS["otp"], MILESTONE_EVENTS["email_otp"], MILESTONE_EVENTS["signup"]],
+        [MILESTONE_EVENTS["otp"], MILESTONE_EVENTS["email_page"],
+         MILESTONE_EVENTS["email_otp"], MILESTONE_EVENTS["signup"]],
         cur_start, cur_end,
     )
     print(f"    device_types={len(otp_email_funnel)}")
 
-    print("\n📡  [2/7] OTP → Email SSO → Signup funnel by device type...")
+    print("\n📡  [2/7] OTP → Email Page → Email SSO → Signup funnel by device type...")
     otp_sso_funnel = client.get_funnel_by_device_type(
-        [MILESTONE_EVENTS["otp"], MILESTONE_EVENTS["email_sso"], MILESTONE_EVENTS["signup"]],
+        [MILESTONE_EVENTS["otp"], MILESTONE_EVENTS["email_page"],
+         MILESTONE_EVENTS["email_sso"], MILESTONE_EVENTS["signup"]],
         cur_start, cur_end,
     )
     print(f"    device_types={len(otp_sso_funnel)}")
@@ -141,13 +151,17 @@ def run(dry_run: bool = False):
 
     device_table = compute_device_funnel_table(otp_email_funnel, otp_sso_funnel)
 
-    # Current 7d totals derived from funnel results
-    # OTP: funnel step[0] = all users who fired OTP (same as segmentation)
-    cur_otp    = sum(s[0] for s in otp_email_funnel.values() if s)
-    cur_email  = sum(s[1] for s in otp_email_funnel.values() if len(s) > 1)
-    cur_sso    = sum(s[1] for s in otp_sso_funnel.values()   if len(s) > 1)
-    cur_signup = (sum(s[2] for s in otp_email_funnel.values() if len(s) > 2) +
-                  sum(s[2] for s in otp_sso_funnel.values()   if len(s) > 2))
+    # Current 7d totals derived from 4-step funnel results
+    # step[0] = OTP (all users)
+    # step[1] = EMAIL_PAGE_VIEW (new-user proxy — same step in both funnels)
+    # step[2] = EMAIL_VERIFY_OTP_SUCCESS or SSO_VERIFICATION_SUCCESS
+    # step[3] = SETUP_SECURE_PIN_SUCCESS (signup)
+    cur_otp        = sum(s[0] for s in otp_email_funnel.values() if s)
+    cur_email_page = sum(s[1] for s in otp_email_funnel.values() if len(s) > 1)  # new-user OTP proxy
+    cur_email      = sum(s[2] for s in otp_email_funnel.values() if len(s) > 2)
+    cur_sso        = sum(s[2] for s in otp_sso_funnel.values()   if len(s) > 2)
+    cur_signup     = (sum(s[3] for s in otp_email_funnel.values() if len(s) > 3) +
+                      sum(s[3] for s in otp_sso_funnel.values()   if len(s) > 3))
     cur_email_total = cur_email + cur_sso
 
     wow = compute_wow_totals(
@@ -184,6 +198,7 @@ def run(dry_run: bool = False):
         period_label=label,
         device_table=device_table,
         cur_otp=cur_otp,
+        cur_email_page=cur_email_page,
         cur_email_otp=cur_email,
         cur_email_sso=cur_sso,
         cur_signup=cur_signup,

@@ -51,10 +51,11 @@ FUNNEL_STEPS = STAGE1_STEPS + STAGE2_STEPS + STAGE3_STEPS
 # SSO_VERIFICATION_SUCCESS = Email verified via Google SSO (new users only)
 # SETUP_SECURE_PIN_SUCCESS = Registration complete (new users only)
 MILESTONE_EVENTS = {
-    "otp":     "VERIFY_OTP_SUCCESS",
-    "email_otp": "EMAIL_VERIFY_OTP_SUCCESS",
-    "email_sso": "SSO_VERIFICATION_SUCCESS",
-    "signup":  "SETUP_SECURE_PIN_SUCCESS",
+    "otp":        "VERIFY_OTP_SUCCESS",
+    "email_page": "EMAIL_PAGE_VIEW",          # proxy for new-user OTPs (99.5% match with first-time OTP)
+    "email_otp":  "EMAIL_VERIFY_OTP_SUCCESS",
+    "email_sso":  "SSO_VERIFICATION_SUCCESS",
+    "signup":     "SETUP_SECURE_PIN_SUCCESS",
 }
 
 # ── Failure events — tracked via segmentation API ─────────────────────────────

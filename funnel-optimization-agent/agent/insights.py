@@ -376,35 +376,44 @@ def get_overall_health(
 # ===========================================================================
 
 def compute_device_funnel_table(
-    otp_email_funnel: Dict[str, List],  # {device: [otp, email_otp, signup_otp_path]}
-    otp_sso_funnel:   Dict[str, List],  # {device: [otp, email_sso, signup_sso_path]}
+    otp_email_funnel: Dict[str, List],  # {device: [otp, email_page, email_otp, signup]}
+    otp_sso_funnel:   Dict[str, List],  # {device: [otp, email_page, email_sso, signup]}
 ) -> List[Dict]:
     """
-    Aggregate Funnel API results by device tier.
+    Aggregate 4-step Funnel API results by device tier.
 
-    Both dicts come from get_funnel_by_device_type(), so step[i+1] <= step[i].
-    This guarantees Email→Signup conversion is always ≤ 100%.
+    Step indices (both funnels):
+      [0] OTP           = VERIFY_OTP_SUCCESS         (new + returning users)
+      [1] Email Page    = EMAIL_PAGE_VIEW             (proxy for new-user OTPs)
+      [2] Email Verify  = EMAIL_VERIFY_OTP_SUCCESS or SSO_VERIFICATION_SUCCESS
+      [3] Signup        = SETUP_SECURE_PIN_SUCCESS
 
-    otp_email_funnel: OTP → EMAIL_VERIFY_OTP_SUCCESS → SETUP_SECURE_PIN_SUCCESS
-    otp_sso_funnel:   OTP → SSO_VERIFICATION_SUCCESS  → SETUP_SECURE_PIN_SUCCESS
+    EMAIL_PAGE_VIEW fires for ALL new users (both OTP and SSO paths) and matches
+    first-time VERIFY_OTP_SUCCESS at 99.5% — used as accurate denominator for New%.
+
+    Two conversion columns replace the old misleading single OTP→Em%:
+      New%  = email_page / otp           (what % of all OTPs are new users)
+      Em%   = email_total / email_page   (of new users, what % complete email verification)
     """
-    otp_t        : Dict[str, int] = {}
-    email_otp_t  : Dict[str, int] = {}
-    signup_otp_t : Dict[str, int] = {}
+    otp_t         : Dict[str, int] = {}
+    email_page_t  : Dict[str, int] = {}
+    email_otp_t   : Dict[str, int] = {}
+    signup_otp_t  : Dict[str, int] = {}
 
     for device, steps in otp_email_funnel.items():
         tier = classify_device_type(device)
         otp_t[tier]        = otp_t.get(tier, 0)        + (steps[0] if len(steps) > 0 else 0)
-        email_otp_t[tier]  = email_otp_t.get(tier, 0)  + (steps[1] if len(steps) > 1 else 0)
-        signup_otp_t[tier] = signup_otp_t.get(tier, 0) + (steps[2] if len(steps) > 2 else 0)
+        email_page_t[tier] = email_page_t.get(tier, 0) + (steps[1] if len(steps) > 1 else 0)
+        email_otp_t[tier]  = email_otp_t.get(tier, 0)  + (steps[2] if len(steps) > 2 else 0)
+        signup_otp_t[tier] = signup_otp_t.get(tier, 0) + (steps[3] if len(steps) > 3 else 0)
 
     email_sso_t  : Dict[str, int] = {}
     signup_sso_t : Dict[str, int] = {}
 
     for device, steps in otp_sso_funnel.items():
         tier = classify_device_type(device)
-        email_sso_t[tier]  = email_sso_t.get(tier, 0)  + (steps[1] if len(steps) > 1 else 0)
-        signup_sso_t[tier] = signup_sso_t.get(tier, 0) + (steps[2] if len(steps) > 2 else 0)
+        email_sso_t[tier]  = email_sso_t.get(tier, 0)  + (steps[2] if len(steps) > 2 else 0)
+        signup_sso_t[tier] = signup_sso_t.get(tier, 0) + (steps[3] if len(steps) > 3 else 0)
 
     display_order = [
         "low_android", "mid_android", "premium_android",
@@ -414,28 +423,34 @@ def compute_device_funnel_table(
     rows = []
     for tier in display_order:
         otp         = otp_t.get(tier, 0)
+        email_page  = email_page_t.get(tier, 0)
         email_otp   = email_otp_t.get(tier, 0)
         email_sso   = email_sso_t.get(tier, 0)
         email_total = email_otp + email_sso
-        # signup = both paths combined; guaranteed ≤ email_total per path by funnel definition
         signup      = signup_otp_t.get(tier, 0) + signup_sso_t.get(tier, 0)
 
         if otp == 0 and email_total == 0 and signup == 0:
             continue
 
-        otp_to_email    = round(email_total / otp         * 100, 1) if otp        > 0 else 0.0
-        email_to_signup = round(signup      / email_total * 100, 1) if email_total > 0 else 0.0
+        # New%: what % of all OTPs are new users (email_page ≈ first-time OTP)
+        otp_to_newuser    = round(email_page  / otp        * 100, 1) if otp        > 0 else 0.0
+        # Em%: of new users who hit email page, what % complete email verification
+        newuser_to_email  = round(email_total / email_page * 100, 1) if email_page > 0 else 0.0
+        # PIN%: of email-verified users, what % complete PIN setup (unchanged)
+        email_to_signup   = round(signup      / email_total * 100, 1) if email_total > 0 else 0.0
 
         rows.append({
-            "tier":                tier,
-            "label":               DEVICE_TIER_LABELS.get(tier, tier),
-            "otp":                 otp,
-            "email_otp":           email_otp,
-            "email_sso":           email_sso,
-            "email_total":         email_total,
-            "signup":              signup,
-            "otp_to_email_pct":    otp_to_email,
-            "email_to_signup_pct": email_to_signup,
+            "tier":                 tier,
+            "label":                DEVICE_TIER_LABELS.get(tier, tier),
+            "otp":                  otp,
+            "email_page":           email_page,
+            "email_otp":            email_otp,
+            "email_sso":            email_sso,
+            "email_total":          email_total,
+            "signup":               signup,
+            "otp_to_newuser_pct":   otp_to_newuser,
+            "newuser_to_email_pct": newuser_to_email,
+            "email_to_signup_pct":  email_to_signup,
         })
 
     return rows
@@ -530,9 +545,9 @@ def generate_alerts_v2(
     # ── Low Android new-user ratio ─────────────────────────────────────────
     for row in device_table:
         if row["tier"] == "low_android" and row["otp"] > 0:
-            if row["otp_to_email_pct"] < 10:
+            if row["otp_to_newuser_pct"] < 10:
                 alerts.append(
-                    f"💡 *Low Android* OTP→Email only *{row['otp_to_email_pct']}%* — "
+                    f"💡 *Low Android* new-user ratio only *{row['otp_to_newuser_pct']}%* — "
                     f"mostly returning logins, negligible new user acquisition"
                 )
 

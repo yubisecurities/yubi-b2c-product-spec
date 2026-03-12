@@ -256,6 +256,7 @@ def build_message_v2(
     period_label:       str,
     device_table:       List[Dict],
     cur_otp:            int,
+    cur_email_page:     int,
     cur_email_otp:      int,
     cur_email_sso:      int,
     cur_signup:         int,
@@ -344,10 +345,13 @@ def build_message_v2(
     # ── DEVICE TIER TABLE ─────────────────────────────────────────────────
     blocks.append(_md_section(
         "*📲 Milestone Funnel by Device Tier  ·  Last 7 Days*\n"
-        "_OTP ✓ = Mobile Verified (new + returning) · Email ✓ & Signup ✓ = New users only_"
+        "_OTP ✓ = Mobile Verified (new + returning)  ·  "
+        "New% = % of OTPs that are new users  ·  "
+        "Em% = new-user email completion rate  ·  "
+        "PIN% = email-verified → signup_"
     ))
     blocks.append(_md_section(
-        _milestone_table(device_table, cur_otp, cur_email_otp, cur_email_sso, cur_signup)
+        _milestone_table(device_table, cur_otp, cur_email_page, cur_email_otp, cur_email_sso, cur_signup)
     ))
     blocks.append({"type": "divider"})
 
@@ -381,38 +385,47 @@ def build_message_v2(
 
 
 def _milestone_table(
-    device_table:  List[Dict],
-    cur_otp:       int,
-    cur_email_otp: int,
-    cur_email_sso: int,
-    cur_signup:    int,
+    device_table:   List[Dict],
+    cur_otp:        int,
+    cur_email_page: int,
+    cur_email_otp:  int,
+    cur_email_sso:  int,
+    cur_signup:     int,
 ) -> str:
-    """Fixed-width device tier × milestone table for Slack code block."""
+    """
+    Fixed-width device tier × milestone table for Slack code block.
+
+    Columns: Tier | OTP ✓ | Eml OTP | Eml SSO | Signup | New% | Em% | PIN%
+      New%  = EMAIL_PAGE_VIEW / OTP           (% of OTPs that are new users)
+      Em%   = (Eml OTP + Eml SSO) / Email Page  (new-user email completion rate)
+      PIN%  = Signup / (Eml OTP + Eml SSO)    (email-verified → signup)
+    """
     if not device_table:
         return "_No device data available_"
 
-    # Column widths + 2-space separator between every column
     C_TIER = 16
     C_OTP  =  7
     C_EOTP =  8
     C_ESSO =  7
     C_PIN  =  7
-    C_O2E  =  8   # e.g. "100.0%"
-    C_E2P  =  8
-    S      = "  "  # column separator
+    C_NEW  =  7   # New%
+    C_EM   =  7   # Em%
+    C_E2P  =  7   # PIN%
+    S      = "  "
 
-    def _fmt_row(label, otp, eotp, esso, pin, o2e, e2p):
+    def _fmt_row(label, otp, eotp, esso, pin, new_pct, em_pct, e2p_pct):
         return (
             f"{label:<{C_TIER}}"
             f"{S}{otp:>{C_OTP},}"
             f"{S}{eotp:>{C_EOTP},}"
             f"{S}{esso:>{C_ESSO},}"
             f"{S}{pin:>{C_PIN},}"
-            f"{S}{f'{o2e}%':>{C_O2E}}"
-            f"{S}{f'{e2p}%':>{C_E2P}}"
+            f"{S}{f'{new_pct}%':>{C_NEW}}"
+            f"{S}{f'{em_pct}%':>{C_EM}}"
+            f"{S}{f'{e2p_pct}%':>{C_E2P}}"
         )
 
-    col_total = C_TIER + (C_OTP + C_EOTP + C_ESSO + C_PIN + C_O2E + C_E2P) + len(S) * 6
+    col_total = C_TIER + (C_OTP + C_EOTP + C_ESSO + C_PIN + C_NEW + C_EM + C_E2P) + len(S) * 7
     sep    = "─" * col_total
     header = (
         f"{'Tier':<{C_TIER}}"
@@ -420,8 +433,9 @@ def _milestone_table(
         f"{S}{'Eml OTP':>{C_EOTP}}"
         f"{S}{'Eml SSO':>{C_ESSO}}"
         f"{S}{'Signup':>{C_PIN}}"
-        f"{S}{'OTP→Em':>{C_O2E}}"
-        f"{S}{'Em→PIN':>{C_E2P}}"
+        f"{S}{'New%':>{C_NEW}}"
+        f"{S}{'Em%':>{C_EM}}"
+        f"{S}{'PIN%':>{C_E2P}}"
     )
 
     lines = [header, sep]
@@ -432,15 +446,18 @@ def _milestone_table(
             row["email_otp"],
             row["email_sso"],
             row["signup"],
-            row["otp_to_email_pct"],
+            row["otp_to_newuser_pct"],
+            row["newuser_to_email_pct"],
             row["email_to_signup_pct"],
         ))
 
     total_email = cur_email_otp + cur_email_sso
-    o2e_total   = round(total_email / cur_otp    * 100, 1) if cur_otp      > 0 else 0.0
-    e2p_total   = round(cur_signup  / total_email * 100, 1) if total_email > 0 else 0.0
+    new_total   = round(cur_email_page / cur_otp        * 100, 1) if cur_otp        > 0 else 0.0
+    em_total    = round(total_email    / cur_email_page * 100, 1) if cur_email_page > 0 else 0.0
+    e2p_total   = round(cur_signup     / total_email    * 100, 1) if total_email    > 0 else 0.0
     lines.append(sep)
-    lines.append(_fmt_row("TOTAL", cur_otp, cur_email_otp, cur_email_sso, cur_signup, o2e_total, e2p_total))
+    lines.append(_fmt_row("TOTAL", cur_otp, cur_email_otp, cur_email_sso, cur_signup,
+                           new_total, em_total, e2p_total))
 
     has_unknown = any(r["tier"] == "unknown_android" for r in device_table)
     table_text  = "```\n" + "\n".join(lines) + "\n```"
