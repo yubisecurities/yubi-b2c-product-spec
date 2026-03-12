@@ -7,6 +7,7 @@ Insight generation — converts raw Amplitude counts into:
   - Anomaly alerts and recommendations
 """
 
+from datetime import date
 from typing import Dict, List
 from config import (
     STAGE1_STEPS, STAGE2_STEPS, STAGE3_STEPS,
@@ -17,6 +18,7 @@ from config import (
     DEVICE_TIER_PATTERNS,
     DEVICE_TIER_BASELINES,
     DEVICE_TIER_LABELS,
+    SSO_LAUNCH_DATE,
 )
 
 
@@ -536,9 +538,12 @@ def generate_alerts_v2(
 
     # ── SSO adoption note ─────────────────────────────────────────────────
     if sso_pct > 5:
+        days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
+        days_remaining = max(0, 30 - days_since_sso)
         alerts.append(
             f"📈 *Google SSO: {sso_pct}%* of email verifications "
-            f"(launched 7 days ago — target 40% within 30 days)"
+            f"(launched 7 Mar 2025, day {days_since_sso} — "
+            f"target 40% within 30 days, {days_remaining}d remaining)"
         )
 
     alerts.sort(key=lambda x: (0 if x.startswith("🔴") else (1 if x.startswith("⚠️") else 2)))
@@ -630,9 +635,13 @@ def generate_wins_v2(
             f"({reg['previous']:,} → {reg['current']:,})"
         )
 
-    # SSO healthy adoption (launched recently)
+    # SSO healthy adoption (launched 7 Mar 2025)
     if sso_pct >= 15:
-        wins.append(f"Google SSO at *{sso_pct}%* adoption — strong start since launch")
+        days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
+        wins.append(
+            f"Google SSO at *{sso_pct}%* adoption — "
+            f"strong start (day {days_since_sso} since 7 Mar 2025 launch)"
+        )
 
     # Premium Android or iOS holding strong Email→PIN
     for row in device_table:

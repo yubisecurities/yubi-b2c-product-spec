@@ -151,8 +151,10 @@ aligned columns.
 | Registrations down 10–20% WoW | ⚠️ Warning |
 | Low Android OTP→Email < 10% | 💡 Info (mostly returning users) |
 
-**SSO adoption tracking:** Google SSO launched ~7 days ago to reduce friction on iOS
-(known abandonment point for email OTP). Target: 40%+ adoption within 30 days.
+**SSO adoption tracking:** Google SSO launched **7 March 2025** to reduce friction on iOS
+(known abandonment point for email OTP). Target: 40%+ adoption within 30 days (by ~6 Apr 2025).
+`SSO_LAUNCH_DATE = date(2025, 3, 7)` in `config.py` — days since launch and days remaining
+are auto-computed in alerts and wins messages.
 
 ---
 
@@ -184,4 +186,4 @@ ad-hoc runs or testing.
 | 2 | Post-KYC funnel tracking | Current funnel is pre-KYC (registration only). KYC completion → investment is the next funnel stage not yet tracked |
 | 3 | OTP "new users only" via API | `Event Historical Count = 1` not available in API — workaround would be a user-level query (expensive) |
 | 4 | City/geography breakdown | Business context says Metro + Tier-1 is target; could add city-level breakdown if Amplitude has geo data |
-| 5 | SSO adoption 30-day tracker | Current note hardcodes "launched 7 days ago" — should eventually auto-compute days since SSO launch |
+| 5 | ~~SSO adoption 30-day tracker~~ | ✅ Resolved — `SSO_LAUNCH_DATE = date(2025, 3, 7)` in config.py; days since launch and days remaining auto-computed in alerts/wins |

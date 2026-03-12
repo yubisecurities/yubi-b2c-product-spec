@@ -13,7 +13,7 @@ compact report to Slack with 4 sections:
 Funnel milestones fetched via Funnel API (same-user tracking) by device_type:
   OTP ✓         = VERIFY_OTP_SUCCESS           (new + returning users)
   Email ✓ OTP   = EMAIL_VERIFY_OTP_SUCCESS      (new users only)
-  Email ✓ SSO   = SSO_VERIFICATION_SUCCESS      (new users only, launched ~7d ago)
+  Email ✓ SSO   = SSO_VERIFICATION_SUCCESS      (new users only, launched 7 Mar 2025)
   Signup ✓      = SETUP_SECURE_PIN_SUCCESS      (new users only)
 
 Using Funnel API for current period ensures Em→PIN conversion is always ≤100%
