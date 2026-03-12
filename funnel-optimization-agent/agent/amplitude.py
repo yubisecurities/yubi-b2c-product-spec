@@ -114,17 +114,22 @@ class AmplitudeClient:
             }
         return result
 
-    def get_funnel_by_device_type(
+    def get_funnel_by_device_family(
         self, event_names: List[str], start: str, end: str
     ) -> Dict[str, List[int]]:
         """
-        Run a funnel analysis grouped by device_type.
-        Returns {device_type: [step1_count, step2_count, step3_count, ...]}.
+        Run a funnel analysis grouped by device_family.
+        Returns {device_family: [step1_count, step2_count, step3_count, ...]}.
+
+        Uses device_family (not device_type) because device_family returns marketing
+        names like "Samsung Galaxy S22", "Redmi Note 11" — matching DEVICE_TIER_PATTERNS.
+        device_type returns raw hardware model codes (SM-S901B, 2201116TG) which the
+        patterns cannot match, leading to a large Unknown Android bucket.
 
         cumulativeRaw[i] = users who completed steps 0..i in order (same user).
         Guarantees: cumulativeRaw[i+1] <= cumulativeRaw[i] — so step ratios never exceed 100%.
         """
-        data = self._funnel(event_names, start, end, group_by="device_type")
+        data = self._funnel(event_names, start, end, group_by="device_family")
         if not data:
             return {}
         result: Dict[str, List[int]] = {}
@@ -137,15 +142,15 @@ class AmplitudeClient:
                 result[str(device)] = [v or 0 for v in raw]
         return result
 
-    def get_event_by_device_type(
+    def get_event_by_device_family(
         self, event_name: str, start: str, end: str
     ) -> Dict[str, int]:
         """
-        Return unique users for `event_name` broken down by device_type.
-        device_type returns full device model strings:
-          e.g. "Apple iPhone 15", "Samsung Galaxy A52", "Windows", "Mac"
+        Return unique users for `event_name` broken down by device_family.
+        device_family returns marketing names: "Samsung Galaxy A52", "Redmi Note 11", "iPhone 15".
+        Preferred over device_type which returns raw hardware codes (SM-A525F, 2201116TG).
         """
-        data = self._segmentation(event_name, start, end, group_by="device_type")
+        data = self._segmentation(event_name, start, end, group_by="device_family")
         if data is None:
             return {}
 

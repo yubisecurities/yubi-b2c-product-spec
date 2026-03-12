@@ -112,6 +112,43 @@ S22" matching a mid pattern before hitting the premium pattern.
 
 ---
 
+## device_family vs device_type for Funnel Grouping
+
+### Decision: Group funnels by device_family (not device_type)
+**Date:** Mar 2025
+**Status:** ✅ Implemented
+
+**Problem:** Initial implementation grouped the Funnel API by `device_type`. This caused
+a very large Unknown Android bucket because `device_type` returns raw hardware model codes:
+
+| `device_type` (raw)  | Actual device          |
+|----------------------|------------------------|
+| `SM-S901B`           | Samsung Galaxy S22     |
+| `SM-A525F`           | Samsung Galaxy A52s    |
+| `2201116TG`          | Xiaomi Redmi Note 11   |
+| `RMX3511`            | Realme 9 SE            |
+
+None of these hardware codes match the marketing-name patterns in `DEVICE_TIER_PATTERNS`
+(e.g. `"samsung s22"`, `"redmi note"`, `"realme 9"`), so almost every Android device
+fell into `unknown_android`.
+
+**Fix:** Switch Funnel API `group_by` parameter from `device_type` → `device_family`.
+
+`device_family` returns the same marketing names used in the Amplitude dashboard
+and that `DEVICE_TIER_PATTERNS` was designed to match:
+- `Samsung Galaxy S22` → matches `"samsung s22"` → Premium ✓
+- `Samsung Galaxy A52` → matches `"samsung a"` → Mid ✓
+- `Redmi Note 11` → matches `"redmi note"` → Mid ✓
+- `Realme 9` → matches `"realme 9"` → Mid ✓
+
+**Why this wasn't caught earlier:** The Amplitude UI was always using device family
+for the breakdown (user confirmed). The API implementation incorrectly used `device_type`.
+
+**Remaining Unknown Android after fix:** Genuinely obscure OEMs (Itel, no-name Android)
+whose device family names don't match any known pattern — not misclassified Samsungs/Xiaomis.
+
+---
+
 ## Funnel API vs Segmentation API
 
 ### Decision: Use Funnel API for device-tier table (eliminates Em→PIN >100%)
