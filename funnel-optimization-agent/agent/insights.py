@@ -588,19 +588,23 @@ def generate_alerts_v2(
                 )
 
     # ── SSO adoption note ─────────────────────────────────────────────────
+    # SSO is a BETTER path (4 steps, 89.6% completion vs 6 steps, 69.6% for OTP).
+    # Low adoption = users defaulting to the harder path, not a neutral choice.
     if sso_pct > 5:
         days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
-        launch_str     = SSO_LAUNCH_DATE.strftime("%-d %b %Y")
+        otp_pct        = round(100 - sso_pct, 1)
         if days_since_sso <= 30:
             days_remaining = 30 - days_since_sso
             alerts.append(
-                f"📈 *Google SSO: {sso_pct}%* of email verifications "
-                f"(launched {launch_str}, day {days_since_sso} — "
-                f"target 40% within 30 days, {days_remaining}d remaining)"
+                f"📈 *Google SSO: {sso_pct}%* choosing the faster path "
+                f"(4 steps, 89.6% completion) — *{otp_pct}%* still on OTP "
+                f"(6 steps, 69.6% completion) · day {days_since_sso}, "
+                f"target 40% in {days_remaining}d"
             )
         else:
             alerts.append(
-                f"📈 *Google SSO: {sso_pct}%* of email verifications"
+                f"📈 *Google SSO: {sso_pct}%* on the faster path "
+                f"(4 steps, 89.6% completion) — {otp_pct}% still on OTP (6 steps)"
             )
 
     alerts.sort(key=lambda x: (0 if x.startswith("🔴") else (1 if x.startswith("⚠️") else 2)))
@@ -692,17 +696,19 @@ def generate_wins_v2(
             f"({reg['previous']:,} → {reg['current']:,})"
         )
 
-    # SSO healthy adoption
+    # SSO healthy adoption — frame as quality win, not just adoption stat
     if sso_pct >= 15:
         days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
-        launch_str     = SSO_LAUNCH_DATE.strftime("%-d %b %Y")
         if days_since_sso <= 30:
             wins.append(
-                f"Google SSO at *{sso_pct}%* adoption — "
-                f"strong start (day {days_since_sso} since {launch_str} launch)"
+                f"*{sso_pct}%* of users choosing SSO — the better path "
+                f"(4 steps, 89.6% completion vs 69.6% OTP) · day {days_since_sso} since launch"
             )
         else:
-            wins.append(f"Google SSO at *{sso_pct}%* adoption")
+            wins.append(
+                f"*{sso_pct}%* of users on SSO — "
+                f"4 steps, 89.6% completion vs 69.6% for OTP"
+            )
 
     # Premium Android or iOS holding strong Email→PIN
     for row in device_table:
