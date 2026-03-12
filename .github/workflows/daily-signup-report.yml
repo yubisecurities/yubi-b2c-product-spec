@@ -1,0 +1,33 @@
+name: Daily Signup Funnel Report
+
+on:
+  schedule:
+    # 8:00 AM IST = 02:30 UTC
+    - cron: "30 2 * * *"
+  workflow_dispatch:  # manual trigger for testing
+
+jobs:
+  report:
+    name: Post Amplitude → Slack report
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: amplitude-analytics/agent/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r amplitude-analytics/agent/requirements.txt
+
+      - name: Run signup funnel report
+        working-directory: amplitude-analytics/agent
+        env:
+          AMPLITUDE_API_KEY:    ${{ secrets.AMPLITUDE_API_KEY }}
+          AMPLITUDE_SECRET_KEY: ${{ secrets.AMPLITUDE_SECRET_KEY }}
+          SLACK_WEBHOOK_URL:    ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python3 agent.py
