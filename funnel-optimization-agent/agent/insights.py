@@ -373,29 +373,35 @@ def get_overall_health(
 # ===========================================================================
 
 def compute_device_funnel_table(
-    otp_by_device:       Dict[str, int],   # VERIFY_OTP_SUCCESS
-    email_otp_by_device: Dict[str, int],   # EMAIL_VERIFY_OTP_SUCCESS
-    email_sso_by_device: Dict[str, int],   # SSO_VERIFICATION_SUCCESS
-    signup_by_device:    Dict[str, int],   # SETUP_SECURE_PIN_SUCCESS
+    otp_email_funnel: Dict[str, List],  # {device: [otp, email_otp, signup_otp_path]}
+    otp_sso_funnel:   Dict[str, List],  # {device: [otp, email_sso, signup_sso_path]}
 ) -> List[Dict]:
     """
-    Aggregate all 4 milestone event counts by device tier.
+    Aggregate Funnel API results by device tier.
 
-    Returns an ordered list of tier rows, each containing:
-      tier, label, otp, email_otp, email_sso, email_total, signup,
-      otp_to_email_pct, email_to_signup_pct
+    Both dicts come from get_funnel_by_device_type(), so step[i+1] <= step[i].
+    This guarantees Email→Signup conversion is always ≤ 100%.
+
+    otp_email_funnel: OTP → EMAIL_VERIFY_OTP_SUCCESS → SETUP_SECURE_PIN_SUCCESS
+    otp_sso_funnel:   OTP → SSO_VERIFICATION_SUCCESS  → SETUP_SECURE_PIN_SUCCESS
     """
-    def _agg(by_device: Dict[str, int]) -> Dict[str, int]:
-        totals: Dict[str, int] = {}
-        for device, count in by_device.items():
-            tier = classify_device_type(device)
-            totals[tier] = totals.get(tier, 0) + count
-        return totals
+    otp_t        : Dict[str, int] = {}
+    email_otp_t  : Dict[str, int] = {}
+    signup_otp_t : Dict[str, int] = {}
 
-    otp_t       = _agg(otp_by_device)
-    email_otp_t = _agg(email_otp_by_device)
-    email_sso_t = _agg(email_sso_by_device)
-    signup_t    = _agg(signup_by_device)
+    for device, steps in otp_email_funnel.items():
+        tier = classify_device_type(device)
+        otp_t[tier]        = otp_t.get(tier, 0)        + (steps[0] if len(steps) > 0 else 0)
+        email_otp_t[tier]  = email_otp_t.get(tier, 0)  + (steps[1] if len(steps) > 1 else 0)
+        signup_otp_t[tier] = signup_otp_t.get(tier, 0) + (steps[2] if len(steps) > 2 else 0)
+
+    email_sso_t  : Dict[str, int] = {}
+    signup_sso_t : Dict[str, int] = {}
+
+    for device, steps in otp_sso_funnel.items():
+        tier = classify_device_type(device)
+        email_sso_t[tier]  = email_sso_t.get(tier, 0)  + (steps[1] if len(steps) > 1 else 0)
+        signup_sso_t[tier] = signup_sso_t.get(tier, 0) + (steps[2] if len(steps) > 2 else 0)
 
     display_order = [
         "low_android", "mid_android", "premium_android",
@@ -408,23 +414,24 @@ def compute_device_funnel_table(
         email_otp   = email_otp_t.get(tier, 0)
         email_sso   = email_sso_t.get(tier, 0)
         email_total = email_otp + email_sso
-        signup      = signup_t.get(tier, 0)
+        # signup = both paths combined; guaranteed ≤ email_total per path by funnel definition
+        signup      = signup_otp_t.get(tier, 0) + signup_sso_t.get(tier, 0)
 
         if otp == 0 and email_total == 0 and signup == 0:
             continue
 
-        otp_to_email   = round(email_total / otp * 100, 1) if otp > 0 else 0.0
-        email_to_signup = round(signup / email_total * 100, 1) if email_total > 0 else 0.0
+        otp_to_email    = round(email_total / otp         * 100, 1) if otp        > 0 else 0.0
+        email_to_signup = round(signup      / email_total * 100, 1) if email_total > 0 else 0.0
 
         rows.append({
-            "tier":              tier,
-            "label":             DEVICE_TIER_LABELS.get(tier, tier),
-            "otp":               otp,
-            "email_otp":         email_otp,
-            "email_sso":         email_sso,
-            "email_total":       email_total,
-            "signup":            signup,
-            "otp_to_email_pct":  otp_to_email,
+            "tier":                tier,
+            "label":               DEVICE_TIER_LABELS.get(tier, tier),
+            "otp":                 otp,
+            "email_otp":           email_otp,
+            "email_sso":           email_sso,
+            "email_total":         email_total,
+            "signup":              signup,
+            "otp_to_email_pct":    otp_to_email,
             "email_to_signup_pct": email_to_signup,
         })
 
