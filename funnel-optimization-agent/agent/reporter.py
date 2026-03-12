@@ -2,8 +2,8 @@
 LLM Report Generator
 ====================
 Python fetches all Amplitude data. This module passes the structured data
-to Claude with the writing guide as system prompt. Claude writes the full
-narrative Slack report as plain mrkdwn text.
+to Claude (via AWS Bedrock) with the writing guide as system prompt. Claude
+writes the full narrative Slack report as plain mrkdwn text.
 
 The writing guide is the source of truth for report structure, tone, and rules.
 Business context (who Aspero is, target audience, LTV signals) is embedded in
@@ -11,11 +11,11 @@ the system prompt so Claude always has the right frame of reference.
 """
 
 import json
-import os
 
-import anthropic
+import boto3
 
-ANTHROPIC_MODEL = "claude-sonnet-4-6"
+BEDROCK_MODEL_ID = "anthropic.claude-opus-4-5"
+BEDROCK_REGION   = "ap-south-1"
 
 # ---------------------------------------------------------------------------
 # System prompt: business context + writing guide
@@ -41,14 +41,27 @@ Target audience (HIGH VALUE):
 Low Android (budget devices <₹10K) = very low LTV, CAC likely exceeds LTV.
 Low+Mid Android dominating signups = acquisition channels misaligned.
 
-Google SSO launched 6 Mar 2026 to reduce email OTP friction on iOS.
-Target: 40%+ SSO adoption within 30 days (by ~5 Apr 2026).
+Google SSO launched 6 Mar 2026. SSO is a measurably BETTER verification path:
+- SSO has 4 steps vs 6 steps for OTP
+- Once a user clicks "Sign in with Google": 89.6% complete it (vs 69.6% for OTP)
+- End-to-end from email page: SSO converts at 18.4% vs OTP at 50.3% — but only
+  because just 20.5% of users click Google vs 72.3% who default to OTP
+- The problem is DISCOVERY, not quality. When users choose SSO, they almost always
+  succeed. Users who default to OTP face a 6-step flow with ~30% abandonment.
+- Target: 40%+ SSO adoption within 30 days (by ~5 Apr 2026).
+  Frame SSO adoption as "% of users choosing the better path", not just a feature metric.
+
+Email verification flows:
+  OTP path:  EMAIL_PAGE_VIEW → EMAIL_PAGE_VERIFY_CLICKED → EMAIL_PAGE_VERIFY_API_SUCCESS
+             → EMAIL_VERIFY_OTP_PAGE_VIEW → EMAIL_VERIFY_OTP_ENTERED → EMAIL_VERIFY_OTP_SUCCESS
+  SSO path:  EMAIL_PAGE_VIEW → GOOGLE_VERIFY_CLICK → GOOGLE_VERIFY_SUCCESS → SSO_VERIFICATION_SUCCESS
 
 Data definitions:
 - Mob. Verif  = new users who completed mobile OTP (EMAIL_PAGE_VIEW — 99.5% match with first-time OTP)
 - Email ✓     = email verification completions (OTP path + Google SSO path combined)
 - Em%         = Email ✓ / Mob. Verif — email completion rate for new users
 - PIN%        = Signup / Email ✓ — final signup rate for email-verified users
+- SSO%        = SSO completions / (OTP completions + SSO completions) — share of users on the better path
 - WoW         = current 7 days vs prior 7 days
 - Yesterday   = actual single day vs 7-day daily average
 
@@ -90,6 +103,10 @@ SECTION 5 — SSO PROGRESS (only include if sso_available is true)
 Show: Day X since launch | Current adoption % | Target % | Days remaining | Pace signal.
 The pace signal is critical: if current adoption continues linearly, what % will SSO
 be at by day 30? State explicitly: ON TRACK ✅, AT RISK ⚠️, or BEHIND 🔴.
+IMPORTANT framing: SSO is a better path (89.6% completion vs 69.6% for OTP, 4 steps vs 6).
+Low adoption means users are defaulting to a slower, higher-abandonment flow — not a neutral
+choice. Frame the gap to 40% target as "users still taking the harder path unnecessarily."
+If adoption is growing, note it signals users are discovering the easier option.
 
 SECTION 6 — NEEDS ATTENTION TODAY
 Maximum 3 bullets. Each bullet must follow this structure:
@@ -129,8 +146,9 @@ CRITICAL RULES:
 
 def generate_report(data: dict) -> str:
     """
-    Call Claude with the writing guide (system prompt) + structured Amplitude
-    data (user message). Returns the full Slack report as a plain mrkdwn string.
+    Call Claude via AWS Bedrock with the writing guide (system prompt) +
+    structured Amplitude data (user message). Returns the full Slack report
+    as a plain mrkdwn string.
 
     data keys expected:
       report_date, period, cur_signup, cur_otp, cur_email_total, cur_email_page,
@@ -138,12 +156,10 @@ def generate_report(data: dict) -> str:
       yesterday {signup/otp_verified/email_conv}, device_table (rows),
       device_table_formatted (pre-formatted code block string),
       sso_available, days_since_sso, days_remaining, generated_at
-    """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY env var not set")
 
-    client = anthropic.Anthropic(api_key=api_key)
+    AWS credentials are resolved automatically by boto3 (env vars or IAM role).
+    """
+    bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
 
     user_message = (
         "Here is today's Amplitude data for the Aspero signup funnel.\n\n"
@@ -155,11 +171,15 @@ def generate_report(data: dict) -> str:
         "string in device_table_formatted — include that verbatim."
     )
 
-    message = client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=2000,
-        system=_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
+    response = bedrock.invoke_model(
+        modelId=BEDROCK_MODEL_ID,
+        body=json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 2000,
+            "system": _SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": user_message}],
+        }),
     )
 
-    return message.content[0].text
+    result = json.loads(response["body"].read())
+    return result["content"][0]["text"]

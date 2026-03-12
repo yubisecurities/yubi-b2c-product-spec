@@ -85,7 +85,7 @@ def run(dry_run: bool = False):
     api_key          = os.getenv("AMPLITUDE_API_KEY")
     secret_key       = os.getenv("AMPLITUDE_SECRET_KEY")
     webhook_url      = os.getenv("SLACK_WEBHOOK_URL")
-    anthropic_key    = os.getenv("ANTHROPIC_API_KEY")
+    aws_key          = os.getenv("AWS_ACCESS_KEY_ID")
 
     missing = [k for k, v in {
         "AMPLITUDE_API_KEY":    api_key,
@@ -253,7 +253,7 @@ def run(dry_run: bool = False):
         return
 
     report_text = None
-    if anthropic_key:
+    if aws_key:
         try:
             print("\n🤖  Generating narrative report via Claude...")
             from reporter import generate_report
