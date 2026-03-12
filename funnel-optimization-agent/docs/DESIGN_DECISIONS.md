@@ -6,6 +6,84 @@ Updated incrementally — newest entries at the top.
 
 ---
 
+## LLM Report Generation via AWS Bedrock
+
+### Decision: Replace Block Kit template with Claude narrative report (via AWS Bedrock)
+**Date:** Mar 2026
+**Status:** ✅ Implemented
+
+**Problem with rule-based Block Kit reports:**
+The original report used hardcoded `build_message_v2()` — Slack Block Kit with templated
+strings and pre-computed alert/win bullets. It could show numbers but couldn't interpret
+them. Every insight required hand-written `if/else` rules, and the output read like a
+spreadsheet dump, not a morning briefing.
+
+**Decision:** Python fetches all Amplitude data + computes derived metrics + pre-formats
+the device tier table. Claude (via AWS Bedrock) writes the full narrative Slack report
+using the writing guide as system prompt.
+
+**Architecture (clean separation of concerns):**
+```
+Python:   fetch → compute → structure data dict → pre-format table
+Claude:   interpret → narrate → write Slack report
+```
+Claude receives a structured JSON payload and the full writing guide (7 sections +
+formatting rules + critical rules) as the system prompt. It outputs plain Slack mrkdwn.
+
+**Why Bedrock over Anthropic SDK:**
+- Yubi has AWS access already configured; no separate Anthropic console account needed
+- Credentials via standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars
+- IAM-based access management (can scope permissions precisely)
+- Model: `anthropic.claude-opus-4-5`, region: `ap-south-1`
+
+**Fallback:** If `AWS_ACCESS_KEY_ID` is not set OR if the Bedrock call fails for any
+reason (network error, model not enabled, quota exceeded), the agent automatically falls
+back to the legacy Block Kit `build_message_v2()` format. The workflow never fails silently
+due to missing LLM credentials.
+
+**New secrets required in GitHub Actions:**
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+(Previous `ANTHROPIC_API_KEY` removed)
+
+---
+
+## SSO Quality: A Better Path, Not Just a Feature Metric
+
+### Insight: SSO adoption should be framed as "users choosing the better flow"
+**Date:** Mar 2026
+**Status:** ✅ Encoded in system prompt
+
+**Data (Amplitude funnel, Mar 6–13 2026):**
+
+| Path | Steps | End-to-end conversion | Completion rate after click |
+|------|-------|-----------------------|-----------------------------|
+| Email OTP | 6 | 50.3% (923/1,835) | 69.6% (923/1,326) |
+| Google SSO | 4 | 18.4% (337/1,835) | 89.6% (337/376) |
+
+**Key insight:**
+The 18.4% end-to-end SSO rate is NOT because SSO is worse — it's because only 20.5% of
+users click the Google button. Of those who do, 89.6% complete it. OTP has a 6-step flow
+with ~30% abandonment after clicking; SSO has a 4-step flow with ~10% abandonment.
+
+**The problem is discovery, not quality.** Most users default to OTP because it's the
+primary/familiar CTA. They're taking a harder path that loses more of them.
+
+**Why this matters for the report:**
+Before this insight, SSO adoption was framed as "we want more users to use this new feature."
+After: "X% of users are still taking the harder 6-step flow when a faster, higher-success
+option is available to them." The gap to 40% target = users unnecessarily at higher risk of
+abandonment.
+
+**OTP flow events (6 steps):**
+`EMAIL_PAGE_VIEW → EMAIL_PAGE_VERIFY_CLICKED → EMAIL_PAGE_VERIFY_API_SUCCESS`
+`→ EMAIL_VERIFY_OTP_PAGE_VIEW → EMAIL_VERIFY_OTP_ENTERED → EMAIL_VERIFY_OTP_SUCCESS`
+
+**SSO flow events (4 steps):**
+`EMAIL_PAGE_VIEW → GOOGLE_VERIFY_CLICK → GOOGLE_VERIFY_SUCCESS → SSO_VERIFICATION_SUCCESS`
+
+---
+
 ## EMAIL_PAGE_VIEW as New-User OTP Proxy → Accurate New% and Em% Columns
 
 ### Decision: Replace single OTP→Em% with New% + Em% using EMAIL_PAGE_VIEW as denominator
@@ -284,6 +362,8 @@ are auto-computed in alerts and wins messages.
 - `AMPLITUDE_API_KEY` — Amplitude Project 506002
 - `AMPLITUDE_SECRET_KEY`
 - `SLACK_WEBHOOK_URL` — Incoming webhook for the target channel
+- `AWS_ACCESS_KEY_ID` — For Claude via Bedrock (LLM report). Optional — falls back to Block Kit if absent.
+- `AWS_SECRET_ACCESS_KEY` — Paired with above
 
 **Manual trigger:** `workflow_dispatch` enabled — use GitHub Actions → Run workflow for
 ad-hoc runs or testing.
