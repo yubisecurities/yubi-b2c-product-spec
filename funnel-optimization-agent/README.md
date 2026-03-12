@@ -10,7 +10,7 @@ This project contains all Amplitude analytics context, analysis scripts, and mon
 ## Structure
 
 ```
-amplitude-analytics/
+funnel-optimization-agent/
 ├── AMPLITUDE_CONTEXT.md          # Master event catalog (19 events, signup funnel)
 ├── docs/                         # Analysis docs and planning
 │   ├── AMPLITUDE_QUICKSTART.md   # Getting started with Amplitude API
