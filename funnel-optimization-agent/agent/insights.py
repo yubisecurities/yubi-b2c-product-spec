@@ -120,16 +120,19 @@ def classify_device_type(device_label: str) -> str:
         if any(kw in lower for kw in DEVICE_TIER_PATTERNS[tier]):
             return tier
 
-    # Known Android vendor but unmatched model → other_android
+    # Known Android vendor but unmatched model → low_android
+    # Premium and popular mid-range models are already enumerated above.
+    # If a device doesn't match any pattern, it's likely an obscure/budget model.
     android_hints = (
         "samsung", "redmi", "xiaomi", "oneplus", "oppo", "vivo",
         "realme", "poco", "motorola", "moto", "asus", "lenovo",
         "huawei", "honor", "iqoo", "nothing",
     )
     if any(k in lower for k in android_hints):
-        return "other_android"
+        return "low_android"
 
-    return "other"
+    # Generic "android" string or unknown OEM → low_android
+    return "low_android"
 
 
 def compute_device_tier_insights(
@@ -154,7 +157,7 @@ def compute_device_tier_insights(
     results = {}
     display_order = [
         "low_android", "mid_android", "premium_android",
-        "ios", "web", "other_android", "other",
+        "ios", "web",
     ]
 
     for tier in display_order:
@@ -405,7 +408,7 @@ def compute_device_funnel_table(
 
     display_order = [
         "low_android", "mid_android", "premium_android",
-        "ios", "web", "other_android", "other",
+        "ios", "web",
     ]
 
     rows = []
