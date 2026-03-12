@@ -241,96 +241,129 @@ def _device_tier_table(device_tier_insights: Dict[str, Dict]) -> str:
 # V2 — Compact milestone report
 # ---------------------------------------------------------------------------
 
-_WOW_ARROW_V2 = lambda pct: "📈" if pct > 2 else ("📉" if pct < -2 else "→")
+_SNAP_ICON = {"healthy": "✅", "warning": "⚠️", "critical": "🔴"}
+
+def _wow_direction(pct: float) -> str:
+    """Return ↑/↓/→ prefix string with the percentage."""
+    if pct > 2:
+        return f"↑{abs(pct):.1f}%"
+    if pct < -2:
+        return f"↓{abs(pct):.1f}%"
+    return f"→{abs(pct):.1f}%"
+
 
 def build_message_v2(
-    period_label:  str,
-    device_table:  List[Dict],
-    cur_otp:       int,
-    cur_email_otp: int,
-    cur_email_sso: int,
-    cur_signup:    int,
-    wow:           Dict[str, Dict],
-    alerts:        List[str],
-    health:        str,
+    period_label:       str,
+    device_table:       List[Dict],
+    cur_otp:            int,
+    cur_email_otp:      int,
+    cur_email_sso:      int,
+    cur_signup:         int,
+    wow:                Dict[str, Dict],
+    yesterday_snapshot: Dict,
+    alerts:             List[str],
+    wins:               List[str],
+    health:             str,
 ) -> Dict:
     """
-    Compact 3-section Slack report:
-      1. Header — registrations, WoW, health
-      2. Device Tier Table — milestones × tiers (with OTP/SSO split)
-      3. Insights & Alerts
+    Compact 4-section Slack report matching screenshot format:
+      1. Header + registration summary
+      2. Yesterday Snapshot  |  7-Day Trend
+      3. Device Tier Table
+      4. Needs Attention  |  Wins
     """
     blocks = []
+    now     = datetime.utcnow()
+    weekday = now.strftime("%a")
+    date    = now.strftime("%b %-d")
+
+    cur_email_total = cur_email_otp + cur_email_sso
+    sso_pct   = round(cur_email_sso / cur_email_total * 100, 1) if cur_email_total > 0 else 0
+    email_pct = round(cur_email_otp / cur_email_total * 100, 1) if cur_email_total > 0 else 0
 
     # ── HEADER ────────────────────────────────────────────────────────────
     blocks.append({
         "type": "header",
         "text": {
             "type": "plain_text",
-            "text": f"📊 Aspero Signup Funnel — {period_label}",
+            "text": f"📊 Aspero Funnel · {weekday} {date}",
             "emoji": True,
         },
     })
 
-    # ── SUMMARY LINE ──────────────────────────────────────────────────────
-    wow_reg   = wow.get("signup", {})
-    wow_pct   = wow_reg.get("pct_change", 0)
-    wow_arrow = _WOW_ARROW_V2(wow_pct)
+    # ── REGISTRATION SUMMARY ──────────────────────────────────────────────
+    wow_reg = wow.get("signup", {})
+    wow_dir = _wow_direction(wow_reg.get("pct_change", 0))
+    blocks.append(_md_section(
+        f"{_STATUS_ICON[health]}  *Registrations: {cur_signup:,}*  "
+        f"({wow_dir} vs prior 7d)  ·  "
+        f"📧 OTP *{email_pct}%* · SSO *{sso_pct}%*"
+    ))
+    blocks.append({"type": "divider"})
 
-    cur_email_total = cur_email_otp + cur_email_sso
-    sso_pct   = round(cur_email_sso / cur_email_total * 100, 1) if cur_email_total > 0 else 0
-    email_pct = round(cur_email_otp / cur_email_total * 100, 1) if cur_email_total > 0 else 0
+    # ── YESTERDAY SNAPSHOT + 7-DAY TREND (side by side) ───────────────────
+    snap = yesterday_snapshot
+    s_reg  = snap.get("registrations", {})
+    s_otp  = snap.get("otp_verified",  {})
+    s_eml  = snap.get("email_conv",    {})
+
+    snap_lines = [
+        "*⚡ Yesterday Snapshot*",
+        f"• Registrations:  *{s_reg.get('value', 0):,}*"
+        f"  (7d avg: {int(s_reg.get('avg', 0)):,}/day  {_SNAP_ICON.get(s_reg.get('status','healthy'), '✅')})",
+        f"• OTP Verified:   *{s_otp.get('value', 0):,}*"
+        f"  (7d avg: {int(s_otp.get('avg', 0)):,}/day  {_SNAP_ICON.get(s_otp.get('status','healthy'), '✅')})",
+        f"• Email Conv:     *{s_eml.get('value', 0)}%*"
+        f"  (7d avg: {s_eml.get('avg', 0)}%  {_SNAP_ICON.get(s_eml.get('status','healthy'), '✅')})",
+    ]
+
+    _WOW_LABELS = [
+        ("otp",    "OTP Verified  "),
+        ("email",  "Email Verified"),
+        ("signup", "Registrations "),
+    ]
+    trend_lines = ["*📋 7-Day Trend*"]
+    for key, lbl in _WOW_LABELS:
+        w = wow.get(key, {})
+        if not w:
+            continue
+        trend_lines.append(
+            f"• {lbl}:  {w['previous']:,} → *{w['current']:,}*  "
+            f"({_wow_direction(w['pct_change'])})"
+        )
 
     blocks.append({
         "type": "section",
-        "text": {
-            "type": "mrkdwn",
-            "text": (
-                f"{_STATUS_ICON[health]}  *{_STATUS_LABEL[health]}*\n"
-                f"*{cur_signup:,}* registrations  "
-                f"{wow_arrow} *{wow_pct:+.1f}%* WoW  |  "
-                f"📧 Email: OTP *{email_pct}%* · SSO *{sso_pct}%*"
-            ),
-        },
+        "fields": [
+            {"type": "mrkdwn", "text": "\n".join(snap_lines)},
+            {"type": "mrkdwn", "text": "\n".join(trend_lines)},
+        ],
     })
     blocks.append({"type": "divider"})
 
     # ── DEVICE TIER TABLE ─────────────────────────────────────────────────
     blocks.append(_md_section(
         "*📲 Milestone Funnel by Device Tier  ·  Last 7 Days*\n"
-        "_OTP ✓ = Mobile Verified (new + returning)   "
-        "Email ✓ & Signup ✓ = New users only_"
+        "_OTP ✓ = Mobile Verified (new + returning) · Email ✓ & Signup ✓ = New users only_"
     ))
     blocks.append(_md_section(
         _milestone_table(device_table, cur_otp, cur_email_otp, cur_email_sso, cur_signup)
     ))
     blocks.append({"type": "divider"})
 
-    # ── WEEK-OVER-WEEK ────────────────────────────────────────────────────
-    wow_rows = ["*📆 Week-over-Week  ·  vs prior 7 days*\n"]
-    _WOW_LABELS = [
-        ("otp",    "Mobile Verified (OTP ✓)"),
-        ("email",  "Email Verified"),
-        ("signup", "Registrations ⭐"),
-    ]
-    for key, lbl in _WOW_LABELS:
-        w = wow.get(key, {})
-        if not w:
-            continue
-        arrow = _WOW_ARROW_V2(w["pct_change"])
-        wow_rows.append(
-            f"  {arrow}  {lbl}:  "
-            f"{w['previous']:,} → *{w['current']:,}*  "
-            f"(*{w['pct_change']:+.1f}%*)"
-        )
-    blocks.append(_md_section("\n".join(wow_rows)))
-
-    # ── ALERTS ────────────────────────────────────────────────────────────
+    # ── NEEDS ATTENTION + WINS ────────────────────────────────────────────
     if alerts:
-        blocks.append({"type": "divider"})
-        alert_lines = ["*🔍 Insights & Alerts*"]
+        alert_lines = ["*⚠️ Needs Attention Today*"]
         alert_lines.extend(f"• {a}" for a in alerts)
         blocks.append(_md_section("\n".join(alert_lines)))
+
+    if wins:
+        win_lines = ["*✅ Wins*"]
+        win_lines.extend(f"• {w}" for w in wins)
+        blocks.append(_md_section("\n".join(win_lines)))
+
+    if not alerts and not wins:
+        blocks.append(_md_section("_No alerts or notable wins this period._"))
 
     # ── FOOTER ────────────────────────────────────────────────────────────
     blocks.append({
@@ -339,7 +372,7 @@ def build_message_v2(
             "type": "mrkdwn",
             "text": (
                 f"Amplitude Project 506002  ·  "
-                f"Generated {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
+                f"Generated {now.strftime('%Y-%m-%d %H:%M UTC')}"
             ),
         }],
     })
@@ -358,43 +391,42 @@ def _milestone_table(
     if not device_table:
         return "_No device data available_"
 
-    # Column widths
-    C_TIER  = 15
-    C_OTP   =  7
-    C_EOTP  =  8
-    C_ESSO  =  8
-    C_PIN   =  7
-    C_O2E   =  7
-    C_E2P   =  7
+    # Column widths + 2-space separator between every column
+    C_TIER = 16
+    C_OTP  =  7
+    C_EOTP =  8
+    C_ESSO =  7
+    C_PIN  =  7
+    C_O2E  =  8   # e.g. "100.0%"
+    C_E2P  =  8
+    S      = "  "  # column separator
 
-    def _row(tier_label, otp, eotp, esso, pin, o2e, e2p, bold=False):
-        o2e_s = f"{o2e}%"
-        e2p_s = f"{e2p}%"
-        line = (
-            f"{tier_label:{C_TIER}}"
-            f"{otp:>{C_OTP},}"
-            f"{eotp:>{C_EOTP},}"
-            f"{esso:>{C_ESSO},}"
-            f"{pin:>{C_PIN},}"
-            f"{o2e_s:>{C_O2E}}"
-            f"{e2p_s:>{C_E2P}}"
+    def _fmt_row(label, otp, eotp, esso, pin, o2e, e2p):
+        return (
+            f"{label:<{C_TIER}}"
+            f"{S}{otp:>{C_OTP},}"
+            f"{S}{eotp:>{C_EOTP},}"
+            f"{S}{esso:>{C_ESSO},}"
+            f"{S}{pin:>{C_PIN},}"
+            f"{S}{f'{o2e}%':>{C_O2E}}"
+            f"{S}{f'{e2p}%':>{C_E2P}}"
         )
-        return line
 
-    sep = "─" * (C_TIER + C_OTP + C_EOTP + C_ESSO + C_PIN + C_O2E + C_E2P)
+    col_total = C_TIER + (C_OTP + C_EOTP + C_ESSO + C_PIN + C_O2E + C_E2P) + len(S) * 6
+    sep    = "─" * col_total
     header = (
-        f"{'Tier':{C_TIER}}"
-        f"{'OTP ✓':>{C_OTP}}"
-        f"{'Eml OTP':>{C_EOTP}}"
-        f"{'Eml SSO':>{C_ESSO}}"
-        f"{'Signup':>{C_PIN}}"
-        f"{'OTP→Em':>{C_O2E}}"
-        f"{'Em→PIN':>{C_E2P}}"
+        f"{'Tier':<{C_TIER}}"
+        f"{S}{'OTP ✓':>{C_OTP}}"
+        f"{S}{'Eml OTP':>{C_EOTP}}"
+        f"{S}{'Eml SSO':>{C_ESSO}}"
+        f"{S}{'Signup':>{C_PIN}}"
+        f"{S}{'OTP→Em':>{C_O2E}}"
+        f"{S}{'Em→PIN':>{C_E2P}}"
     )
 
     lines = [header, sep]
     for row in device_table:
-        lines.append(_row(
+        lines.append(_fmt_row(
             row["label"],
             row["otp"],
             row["email_otp"],
@@ -404,11 +436,10 @@ def _milestone_table(
             row["email_to_signup_pct"],
         ))
 
-    # Totals
     total_email = cur_email_otp + cur_email_sso
-    o2e_total = round(total_email / cur_otp * 100, 1) if cur_otp > 0 else 0.0
-    e2p_total = round(cur_signup / total_email * 100, 1) if total_email > 0 else 0.0
+    o2e_total   = round(total_email / cur_otp    * 100, 1) if cur_otp        > 0 else 0.0
+    e2p_total   = round(cur_signup  / total_email * 100, 1) if total_email   > 0 else 0.0
     lines.append(sep)
-    lines.append(_row("TOTAL", cur_otp, cur_email_otp, cur_email_sso, cur_signup, o2e_total, e2p_total))
+    lines.append(_fmt_row("TOTAL", cur_otp, cur_email_otp, cur_email_sso, cur_signup, o2e_total, e2p_total))
 
     return "```\n" + "\n".join(lines) + "\n```"
