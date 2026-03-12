@@ -481,17 +481,17 @@ def generate_alerts_v2(
     """Alerts for the v2 compact report, informed by business context (business_context.md)."""
     alerts: List[str] = []
 
-    # ── Registration WoW drop ─────────────────────────────────────────────
+    # ── Signup WoW drop ───────────────────────────────────────────────────
     reg = wow.get("signup", {})
     pct = reg.get("pct_change", 0)
     if pct <= -20:
         alerts.append(
-            f"🔴 *Registrations down {abs(pct):.1f}% WoW* — "
+            f"🔴 *Signups down {abs(pct):.1f}% WoW* — "
             f"{reg.get('previous', 0):,} → {reg.get('current', 0):,}"
         )
     elif pct <= -10:
         alerts.append(
-            f"⚠️ *Registrations down {abs(pct):.1f}% WoW* — "
+            f"⚠️ *Signups down {abs(pct):.1f}% WoW* — "
             f"{reg.get('previous', 0):,} → {reg.get('current', 0):,}"
         )
 
@@ -522,7 +522,7 @@ def generate_alerts_v2(
             alerts.append(
                 f"🔴 *{row['label']}* (target audience) Email→Signup only *{e2s}%* "
                 f"— high-intent users dropping at PIN setup "
-                f"({row['email_total']:,} email verified, {row['signup']:,} registered)"
+                f"({row['email_total']:,} email verified, {row['signup']:,} signed up)"
             )
         elif e2s < 90:
             alerts.append(
@@ -642,11 +642,11 @@ def generate_wins_v2(
     """Positive signals worth calling out — informed by business context."""
     wins: List[str] = []
 
-    # Registration WoW growth
+    # Signup WoW growth
     reg = wow.get("signup", {})
     if reg.get("pct_change", 0) >= 5:
         wins.append(
-            f"Registrations up *{reg['pct_change']:+.1f}%* WoW "
+            f"Signups up *{reg['pct_change']:+.1f}%* WoW "
             f"({reg['previous']:,} → {reg['current']:,})"
         )
 

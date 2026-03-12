@@ -40,22 +40,37 @@ Funnel 1: OTP → EMAIL_PAGE_VIEW → EMAIL_VERIFY_OTP_SUCCESS → SIGNUP
 Funnel 2: OTP → EMAIL_PAGE_VIEW → SSO_VERIFICATION_SUCCESS  → SIGNUP
 ```
 
-Old single column replaced by two meaningful columns:
-| Column | Formula | What it tells you |
-|--------|---------|-------------------|
-| `New%`  | `EMAIL_PAGE_VIEW / OTP` | % of all mobile verifications that are new users (acquisition quality) |
-| `Em%`   | `EMAIL_VERIFIED / EMAIL_PAGE_VIEW` | Of new users who started email verification, what % completed it (UX friction signal) |
-| `PIN%`  | `SIGNUP / EMAIL_VERIFIED` | Email-verified → signup completion (unchanged) |
+**Final table design (after iteration):**
 
-**Expected values after fix:**
-- `New%` ≈ 25–40% (most OTPs are returning users logging in)
-- `Em%` ≈ 72–85% (matches Amplitude dashboard numbers)
-- `PIN%` ≈ 90%+ for Premium+iOS (stays the same as before)
+```
+Tier              Mob. Verif   Email ✓   Signup    Em%    PIN%
+──────────────────────────────────────────────────────────────
+Low Android            1,510       950      820   62.9%  86.3%
+Mid Android              890       720      680   80.9%  94.4%
+Premium Android          310       290      280   93.5%  96.6%
+iOS                      180       165      160   91.7%  97.0%
+Web                       80        65       55   81.3%  84.6%
+──────────────────────────────────────────────────────────────
+TOTAL                  2,970     2,190    1,995   73.7%  91.1%
+```
 
-**Why Option B (separate columns) over Option A (silent denominator swap):**
-The two metrics answer fundamentally different questions. Collapsing them into one
-number hides useful signal. `New%` tells you about acquisition mix; `Em%` tells you
-about email UX friction. A PM needs both separately.
+| Column | Source | Formula | What it tells you |
+|--------|--------|---------|-------------------|
+| `Mob. Verif` | `EMAIL_PAGE_VIEW` (funnel step[1]) | raw count | New users who completed mobile verification (99.5% proxy for first-time OTP) |
+| `Email ✓` | `EMAIL_VERIFY_OTP_SUCCESS + SSO_VERIFICATION_SUCCESS` | raw count | New users who completed email verification (both paths combined) |
+| `Signup` | `SETUP_SECURE_PIN_SUCCESS` | raw count | New users who completed signup |
+| `Em%` | — | `Email ✓ / Mob. Verif` | Email completion rate among new users (UX friction signal) |
+| `PIN%` | — | `Signup / Email ✓` | Signup completion rate among email-verified users |
+
+**Design iterations:**
+1. Original: `OTP ✓ | Eml OTP | Eml SSO | Signup | OTP→Em% | Em→PIN%` — OTP→Em% was misleading (~42%) because OTP denominator included returning users
+2. Intermediate: Split into `New% + Em%` columns, kept OTP/SSO split — `New%` (ratio) felt confusing; OTP/SSO split added noise
+3. Final: Dropped raw OTP column (returning users not useful here), merged OTP+SSO into `Email ✓`, kept `Mob. Verif` as the count (not ratio). Cleaner and tells the complete new-user journey.
+
+**Other format changes made alongside this:**
+- `Registrations` renamed to `Signups` throughout (header, trend section, alerts, wins)
+- Removed `📧 OTP 77.7% · SSO 22.3%` from header summary — OTP/SSO split cluttered the header and rendered the email emoji as an image icon in Slack
+- Alert section title changed from `⚠️ Needs Attention Today` to `Needs Attention` (emoji in section title renders as image in Slack Block Kit; individual alert lines still carry severity emoji)
 
 ---
 
