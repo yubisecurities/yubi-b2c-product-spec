@@ -401,7 +401,14 @@ def _milestone_table(
     C_E2P  =  8
     S      = "  "  # column separator
 
+    cross_device_flag = False  # set True if any tier shows Em→PIN > 100%
+
     def _fmt_row(label, otp, eotp, esso, pin, o2e, e2p):
+        nonlocal cross_device_flag
+        e2p_str = f"{e2p}%"
+        if e2p > 100:
+            e2p_str = f"{e2p}%*"   # flag cross-device inflation
+            cross_device_flag = True
         return (
             f"{label:<{C_TIER}}"
             f"{S}{otp:>{C_OTP},}"
@@ -409,7 +416,7 @@ def _milestone_table(
             f"{S}{esso:>{C_ESSO},}"
             f"{S}{pin:>{C_PIN},}"
             f"{S}{f'{o2e}%':>{C_O2E}}"
-            f"{S}{f'{e2p}%':>{C_E2P}}"
+            f"{S}{e2p_str:>{C_E2P}}"
         )
 
     col_total = C_TIER + (C_OTP + C_EOTP + C_ESSO + C_PIN + C_O2E + C_E2P) + len(S) * 6
@@ -437,9 +444,12 @@ def _milestone_table(
         ))
 
     total_email = cur_email_otp + cur_email_sso
-    o2e_total   = round(total_email / cur_otp    * 100, 1) if cur_otp        > 0 else 0.0
-    e2p_total   = round(cur_signup  / total_email * 100, 1) if total_email   > 0 else 0.0
+    o2e_total   = round(total_email / cur_otp    * 100, 1) if cur_otp      > 0 else 0.0
+    e2p_total   = round(cur_signup  / total_email * 100, 1) if total_email > 0 else 0.0
     lines.append(sep)
     lines.append(_fmt_row("TOTAL", cur_otp, cur_email_otp, cur_email_sso, cur_signup, o2e_total, e2p_total))
+
+    if cross_device_flag:
+        lines.append("* Some users verified email on one device and completed PIN on another")
 
     return "```\n" + "\n".join(lines) + "\n```"
