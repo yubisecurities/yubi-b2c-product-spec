@@ -114,6 +114,29 @@ class AmplitudeClient:
             }
         return result
 
+    def get_funnel_by_device_type(
+        self, event_names: List[str], start: str, end: str
+    ) -> Dict[str, List[int]]:
+        """
+        Run a funnel analysis grouped by device_type.
+        Returns {device_type: [step1_count, step2_count, step3_count, ...]}.
+
+        cumulativeRaw[i] = users who completed steps 0..i in order (same user).
+        Guarantees: cumulativeRaw[i+1] <= cumulativeRaw[i] — so step ratios never exceed 100%.
+        """
+        data = self._funnel(event_names, start, end, group_by="device_type")
+        if not data:
+            return {}
+        result: Dict[str, List[int]] = {}
+        for item in data:
+            device = item.get("groupValue")
+            if not device or str(device) in ("None", "(none)", ""):
+                continue
+            raw = item.get("cumulativeRaw", [])
+            if any(v > 0 for v in raw):
+                result[str(device)] = [v or 0 for v in raw]
+        return result
+
     def get_event_by_device_type(
         self, event_name: str, start: str, end: str
     ) -> Dict[str, int]:
