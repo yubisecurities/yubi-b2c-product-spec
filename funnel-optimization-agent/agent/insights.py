@@ -495,21 +495,26 @@ def generate_alerts_v2(
             f"{reg.get('previous', 0):,} → {reg.get('current', 0):,}"
         )
 
-    # ── Audience quality: Low+Mid Android dominating (target = Premium+iOS) ──
-    total_otp       = sum(r["otp"] for r in device_table)
-    low_mid_otp     = sum(r["otp"] for r in device_table
-                          if r["tier"] in ("low_android", "mid_android", "other_android"))
-    premium_ios_otp = sum(r["otp"] for r in device_table
-                          if r["tier"] in ("premium_android", "ios"))
-    if total_otp > 0:
-        low_mid_pct     = round(low_mid_otp     / total_otp * 100, 1)
-        premium_ios_pct = round(premium_ios_otp / total_otp * 100, 1)
-        if low_mid_pct > 60:
-            alerts.append(
-                f"📊 Low & Mid Android = *{low_mid_pct}%* of signups — "
-                f"target audience (Premium Android + iOS) only *{premium_ios_pct}%*. "
-                f"Review acquisition channels for higher-intent users"
-            )
+    # ── Audience quality: Low+Mid Android vs Premium+iOS (always shown) ──────
+    total_signup        = sum(r["signup"] for r in device_table)
+    low_mid_signup      = sum(r["signup"] for r in device_table
+                              if r["tier"] in ("low_android", "mid_android", "other_android"))
+    premium_ios_signup  = sum(r["signup"] for r in device_table
+                              if r["tier"] in ("premium_android", "ios"))
+    if total_signup > 0:
+        low_mid_pct     = round(low_mid_signup    / total_signup * 100, 1)
+        premium_ios_pct = round(premium_ios_signup / total_signup * 100, 1)
+        if low_mid_pct > 70:
+            icon = "🔴"
+        elif low_mid_pct > 50:
+            icon = "⚠️"
+        else:
+            icon = "📊"
+        alerts.append(
+            f"{icon} Audience mix: Low & Mid Android *{low_mid_pct}%* of signups, "
+            f"Premium Android + iOS *{premium_ios_pct}%* — "
+            f"{'target audience underrepresented, review acquisition channels' if low_mid_pct > 50 else 'audience quality looks healthy'}"
+        )
 
     # ── Premium Android + iOS: Email→PIN must stay >90% (high-value users) ──
     for row in device_table:
