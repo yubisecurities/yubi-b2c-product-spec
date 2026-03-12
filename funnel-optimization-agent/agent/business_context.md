@@ -87,9 +87,9 @@ investors who want stable, predictable returns beyond traditional FDs and mutual
 ## Growth Stage Context
 
 Aspero is in **early growth phase**:
-- SSO (Google sign-in for email verification) launched **7 March 2025** to reduce friction on
+- SSO (Google sign-in for email verification) launched **6 March 2026** to reduce friction on
   iOS and Premium Android, where the OTP email flow had higher abandonment.
-- Target: SSO adoption > 40% within 30 days of launch (by ~6 April 2025).
+- Target: SSO adoption > 40% within 30 days of launch (by ~5 April 2026).
 - Weekly registration growth target: 10–15% WoW.
 - Any Premium/iOS conversion regression should be treated as P0 — these users represent
   disproportionate revenue potential.

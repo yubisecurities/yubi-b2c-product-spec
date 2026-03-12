@@ -6,7 +6,7 @@ from datetime import date
 AMPLITUDE_PROJECT_ID = "506002"
 
 # Google SSO launch date — used to auto-compute days since launch in alerts/wins
-SSO_LAUNCH_DATE = date(2025, 3, 7)
+SSO_LAUNCH_DATE = date(2026, 3, 6)
 
 # ── Stage 1: Signin Page → OTP Verified (Mobile Verification) ────────────────
 # Note: SIGNIN_PAGE_VERIFY_API_SUCCESS is the correct Amplitude event name

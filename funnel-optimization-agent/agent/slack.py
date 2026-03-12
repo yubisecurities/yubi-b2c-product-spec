@@ -306,12 +306,12 @@ def build_message_v2(
 
     snap_lines = [
         "*Yesterday Snapshot*",
-        f"• Signups:       *{s_reg.get('value', 0):,}*"
-        f"  (7d avg: {int(s_reg.get('avg', 0)):,}/day  {_SNAP_ICON.get(s_reg.get('status','healthy'), '✅')})",
-        f"• OTP Verified:  *{s_otp.get('value', 0):,}*"
-        f"  (7d avg: {int(s_otp.get('avg', 0)):,}/day  {_SNAP_ICON.get(s_otp.get('status','healthy'), '✅')})",
-        f"• Email Conv:    *{s_eml.get('value', 0)}%*"
-        f"  (7d avg: {s_eml.get('avg', 0)}%  {_SNAP_ICON.get(s_eml.get('status','healthy'), '✅')})",
+        f"• Signups:      *{s_reg.get('value', 0):,}*\n"
+        f"  7d avg: {int(s_reg.get('avg', 0)):,}/day  {_SNAP_ICON.get(s_reg.get('status','healthy'), '✅')}",
+        f"• OTP Verified: *{s_otp.get('value', 0):,}*\n"
+        f"  7d avg: {int(s_otp.get('avg', 0)):,}/day  {_SNAP_ICON.get(s_otp.get('status','healthy'), '✅')}",
+        f"• Email Conv:   *{s_eml.get('value', 0)}%*\n"
+        f"  7d avg: {s_eml.get('avg', 0)}%  {_SNAP_ICON.get(s_eml.get('status','healthy'), '✅')}",
     ]
 
     _WOW_LABELS = [

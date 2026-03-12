@@ -554,12 +554,18 @@ def generate_alerts_v2(
     # ── SSO adoption note ─────────────────────────────────────────────────
     if sso_pct > 5:
         days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
-        days_remaining = max(0, 30 - days_since_sso)
-        alerts.append(
-            f"📈 *Google SSO: {sso_pct}%* of email verifications "
-            f"(launched 7 Mar 2025, day {days_since_sso} — "
-            f"target 40% within 30 days, {days_remaining}d remaining)"
-        )
+        launch_str     = SSO_LAUNCH_DATE.strftime("%-d %b %Y")
+        if days_since_sso <= 30:
+            days_remaining = 30 - days_since_sso
+            alerts.append(
+                f"📈 *Google SSO: {sso_pct}%* of email verifications "
+                f"(launched {launch_str}, day {days_since_sso} — "
+                f"target 40% within 30 days, {days_remaining}d remaining)"
+            )
+        else:
+            alerts.append(
+                f"📈 *Google SSO: {sso_pct}%* of email verifications"
+            )
 
     alerts.sort(key=lambda x: (0 if x.startswith("🔴") else (1 if x.startswith("⚠️") else 2)))
     return alerts
@@ -650,13 +656,17 @@ def generate_wins_v2(
             f"({reg['previous']:,} → {reg['current']:,})"
         )
 
-    # SSO healthy adoption (launched 7 Mar 2025)
+    # SSO healthy adoption
     if sso_pct >= 15:
         days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
-        wins.append(
-            f"Google SSO at *{sso_pct}%* adoption — "
-            f"strong start (day {days_since_sso} since 7 Mar 2025 launch)"
-        )
+        launch_str     = SSO_LAUNCH_DATE.strftime("%-d %b %Y")
+        if days_since_sso <= 30:
+            wins.append(
+                f"Google SSO at *{sso_pct}%* adoption — "
+                f"strong start (day {days_since_sso} since {launch_str} launch)"
+            )
+        else:
+            wins.append(f"Google SSO at *{sso_pct}%* adoption")
 
     # Premium Android or iOS holding strong Email→PIN
     for row in device_table:
