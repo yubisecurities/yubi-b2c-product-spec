@@ -3,13 +3,19 @@
 Aspero Amplitude → Slack Agent
 ================================
 Fetches 7-day rolling signup funnel data from Amplitude and posts a
-structured 5-section insight report to Slack:
+compact report to Slack with 3 sections:
 
-  1. Stage 1 · Signin → OTP Verified  (full 6-step funnel + platform breakdown)
-  2. Stage 2 · Email Verification      (full 6-step funnel — new users only)
-  3. Stage 3 · PIN Setup               (full 3-step funnel — new users only)
-  4. Device Quality                    (Low / Mid / Premium Android + iOS + Web)
-  5. Insights & Recommendations
+  1. Header — registrations, WoW, health
+  2. Device Tier Table — 4 milestones × 5 device tiers (with OTP/SSO split)
+  3. Insights & Alerts
+
+Funnel milestones (all fetched via Segmentation API by device_type):
+  OTP ✓         = VERIFY_OTP_SUCCESS           (new + returning users)
+  Email ✓ OTP   = EMAIL_VERIFY_OTP_SUCCESS      (new users only)
+  Email ✓ SSO   = SSO_VERIFICATION_SUCCESS      (new users only, launched ~7d ago)
+  Signup ✓      = SETUP_SECURE_PIN_SUCCESS      (new users only)
+
+API calls: 5 total (4 device_type breakdowns + 1 WoW prior period totals)
 
 Usage:
   python3 agent.py [--dry-run]
@@ -18,9 +24,6 @@ Required env vars:
   AMPLITUDE_API_KEY      Amplitude API key    (Project 506002)
   AMPLITUDE_SECRET_KEY   Amplitude secret key
   SLACK_WEBHOOK_URL      Slack incoming webhook URL
-
-Cron example (every Monday 9am):
-  0 9 * * 1 cd /path/to/agent && python3 agent.py >> agent.log 2>&1
 """
 
 import json
@@ -29,17 +32,9 @@ import sys
 from datetime import datetime, timedelta
 
 from amplitude import AmplitudeClient
-from config import STAGE1_STEPS, STAGE2_STEPS, STAGE3_STEPS, FAILURE_EVENTS
-from insights import (
-    compute_funnel,
-    compute_platform_insights,
-    compute_device_tier_insights,
-    compute_wow,
-    generate_alerts,
-    generate_recommendations,
-    get_overall_health,
-)
-from slack import build_message, send_to_slack
+from config import MILESTONE_EVENTS
+from insights import compute_device_funnel_table, compute_wow_totals, generate_alerts_v2, get_overall_health_v2
+from slack import build_message_v2, send_to_slack
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +42,6 @@ from slack import build_message, send_to_slack
 # ---------------------------------------------------------------------------
 
 def _date_window(days: int, offset_days: int = 0):
-    """Return (start_str, end_str) for a window of `days` ending `offset_days` ago. YYYYMMDD."""
     end   = datetime.now() - timedelta(days=offset_days)
     start = end - timedelta(days=days)
     return start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
@@ -61,12 +55,8 @@ def _period_label(start_str: str, end_str: str) -> str:
     return f"{start.strftime('%b %-d, %Y')} – {end.strftime('%b %-d, %Y')}"
 
 
-def _fetch_failure_counts(client: AmplitudeClient, start: str, end: str) -> dict:
-    counts = {}
-    for event in FAILURE_EVENTS:
-        print(f"    {event}")
-        counts[event] = client.get_event_totals(event, start, end)
-    return counts
+def _event_total(by_device: dict) -> int:
+    return sum(by_device.values())
 
 
 # ---------------------------------------------------------------------------
@@ -94,107 +84,84 @@ def run(dry_run: bool = False):
     # ── Date windows ──────────────────────────────────────────────────────
     cur_start, cur_end   = _date_window(7)
     prev_start, prev_end = _date_window(7, offset_days=7)
-
     label = _period_label(cur_start, cur_end)
     print(f"\n🗓  Period: {label}  ({cur_start} → {cur_end})")
 
-    s1_events = [s["event"] for s in STAGE1_STEPS]
-    s2_events = [s["event"] for s in STAGE2_STEPS]
-    s3_events = [s["event"] for s in STAGE3_STEPS]
+    # ── Fetch — 5 API calls ───────────────────────────────────────────────
+    print("\n📡  [1/5] OTP verified by device type (VERIFY_OTP_SUCCESS)...")
+    otp_by_device = client.get_event_by_device_type(
+        MILESTONE_EVENTS["otp"], cur_start, cur_end
+    )
+    print(f"    total={_event_total(otp_by_device):,}  device_types={len(otp_by_device)}")
 
-    # WoW uses 4 key milestone events only (light 2-step funnel per stage)
-    wow_events = [
-        "SIGNIN_PAGE_VIEW", "VERIFY_OTP_SUCCESS",
-        "EMAIL_VERIFY_OTP_SUCCESS", "SETUP_SECURE_PIN_SUCCESS",
-    ]
+    print("\n📡  [2/5] Email verified — OTP path (EMAIL_VERIFY_OTP_SUCCESS)...")
+    email_otp_by_device = client.get_event_by_device_type(
+        MILESTONE_EVENTS["email_otp"], cur_start, cur_end
+    )
+    print(f"    total={_event_total(email_otp_by_device):,}  device_types={len(email_otp_by_device)}")
 
-    # ── Fetch — 8 API calls total ──────────────────────────────────────────
-    print("\n📡  [1/8] Stage 1 funnel — current period (6 steps)...")
-    s1_counts = client.get_funnel(s1_events, cur_start, cur_end)
-    print(f"    SIGNIN_PAGE_VIEW={s1_counts.get('SIGNIN_PAGE_VIEW', 0):,}  "
-          f"VERIFY_OTP_SUCCESS={s1_counts.get('VERIFY_OTP_SUCCESS', 0):,}")
+    print("\n📡  [3/5] Email verified — SSO path (SSO_VERIFICATION_SUCCESS)...")
+    email_sso_by_device = client.get_event_by_device_type(
+        MILESTONE_EVENTS["email_sso"], cur_start, cur_end
+    )
+    print(f"    total={_event_total(email_sso_by_device):,}  device_types={len(email_sso_by_device)}")
 
-    print("\n📡  [2/8] Stage 1 funnel — by platform...")
-    s1_platform = client.get_funnel_by_platform(s1_events, cur_start, cur_end)
-    for plat, steps in s1_platform.items():
-        views    = steps.get("SIGNIN_PAGE_VIEW", 0)
-        verified = steps.get("VERIFY_OTP_SUCCESS", 0)
-        conv     = round(verified / views * 100, 1) if views > 0 else 0
-        print(f"    {plat:<10}  views={views}  verified={verified}  conv={conv}%")
+    print("\n📡  [4/5] Registration complete by device type (SETUP_SECURE_PIN_SUCCESS)...")
+    signup_by_device = client.get_event_by_device_type(
+        MILESTONE_EVENTS["signup"], cur_start, cur_end
+    )
+    print(f"    total={_event_total(signup_by_device):,}  device_types={len(signup_by_device)}")
 
-    print("\n📡  [3/8] Stage 2 funnel — current period (6 steps)...")
-    s2_counts = client.get_funnel(s2_events, cur_start, cur_end)
-    print(f"    EMAIL_PAGE_VIEW={s2_counts.get('EMAIL_PAGE_VIEW', 0):,}  "
-          f"EMAIL_VERIFY_OTP_SUCCESS={s2_counts.get('EMAIL_VERIFY_OTP_SUCCESS', 0):,}")
-
-    print("\n📡  [4/8] Stage 3 funnel — current period (3 steps)...")
-    s3_counts = client.get_funnel(s3_events, cur_start, cur_end)
-    print(f"    SETUP_SECURE_PIN_PAGE_VIEW={s3_counts.get('SETUP_SECURE_PIN_PAGE_VIEW', 0):,}  "
-          f"SETUP_SECURE_PIN_SUCCESS={s3_counts.get('SETUP_SECURE_PIN_SUCCESS', 0):,}")
-
-    print(f"\n📡  [5/8] WoW milestones — prior period ({prev_start} → {prev_end})...")
-    prior_counts = client.get_funnel(wow_events, prev_start, prev_end)
-
-    print("\n📡  [6/8] Device tier — new user entries by device type (EMAIL_PAGE_VIEW)...")
-    entries_by_device = client.get_event_by_device_type("EMAIL_PAGE_VIEW", cur_start, cur_end)
-    print(f"    {len(entries_by_device)} device types found")
-
-    print("\n📡  [7/8] Device tier — registrations by device type...")
-    regs_by_device = client.get_event_by_device_type("SETUP_SECURE_PIN_SUCCESS", cur_start, cur_end)
-    print(f"    {len(regs_by_device)} device types found")
-
-    print("\n📡  [8/8] Failure events...")
-    failure_counts = _fetch_failure_counts(client, cur_start, cur_end)
+    print(f"\n📡  [5/5] WoW totals — prior period ({prev_start} → {prev_end})...")
+    prior_otp    = client.get_event_totals(MILESTONE_EVENTS["otp"],       prev_start, prev_end)
+    prior_email  = client.get_event_totals(MILESTONE_EVENTS["email_otp"], prev_start, prev_end)
+    prior_sso    = client.get_event_totals(MILESTONE_EVENTS["email_sso"], prev_start, prev_end)
+    prior_signup = client.get_event_totals(MILESTONE_EVENTS["signup"],    prev_start, prev_end)
+    print(f"    otp={prior_otp:,}  email_otp={prior_email:,}  email_sso={prior_sso:,}  signup={prior_signup:,}")
 
     # ── Analyse ───────────────────────────────────────────────────────────
     print("\n🔍  Generating insights...")
 
-    stage1_funnel = compute_funnel(s1_counts, STAGE1_STEPS)
-    stage2_funnel = compute_funnel(s2_counts, STAGE2_STEPS)
-    stage3_funnel = compute_funnel(s3_counts, STAGE3_STEPS)
-
-    platform_insights    = compute_platform_insights(s1_platform)
-    device_tier_insights = compute_device_tier_insights(entries_by_device, regs_by_device)
-
-    # WoW: align current key events with prior funnel output
-    current_key = {
-        "SIGNIN_PAGE_VIEW":        s1_counts.get("SIGNIN_PAGE_VIEW", 0),
-        "VERIFY_OTP_SUCCESS":       s1_counts.get("VERIFY_OTP_SUCCESS", 0),
-        "EMAIL_VERIFY_OTP_SUCCESS": s2_counts.get("EMAIL_VERIFY_OTP_SUCCESS", 0),
-        "SETUP_SECURE_PIN_SUCCESS": s3_counts.get("SETUP_SECURE_PIN_SUCCESS", 0),
-    }
-    wow = compute_wow(current_key, prior_counts)
-
-    alerts = generate_alerts(
-        stage1_funnel, platform_insights, device_tier_insights, failure_counts, wow,
+    device_table = compute_device_funnel_table(
+        otp_by_device, email_otp_by_device, email_sso_by_device, signup_by_device
     )
-    recs = generate_recommendations(
-        stage1_funnel, stage2_funnel, device_tier_insights, platform_insights,
-    )
-    health = get_overall_health(platform_insights, wow)
 
-    # Console summary
-    regs = next((s for s in stage3_funnel if s.get("is_registration")), {})
-    print(f"\n  📊 Registrations:  {regs.get('count', 0):,}")
+    # Current totals
+    cur_otp    = _event_total(otp_by_device)
+    cur_email  = _event_total(email_otp_by_device)
+    cur_sso    = _event_total(email_sso_by_device)
+    cur_signup = _event_total(signup_by_device)
+    cur_email_total = cur_email + cur_sso
+
+    wow = compute_wow_totals(
+        cur_otp, cur_email_total, cur_signup,
+        prior_otp, prior_email + prior_sso, prior_signup,
+    )
+
+    sso_pct   = round(cur_sso / cur_email_total * 100, 1) if cur_email_total > 0 else 0
+    email_pct = round(cur_email / cur_email_total * 100, 1) if cur_email_total > 0 else 0
+
+    health = get_overall_health_v2(wow, device_table)
+    alerts = generate_alerts_v2(wow, device_table, sso_pct)
+
+    print(f"\n  📊 Registrations:  {cur_signup:,}")
+    print(f"  📧 Email method:   OTP {email_pct}% | SSO {sso_pct}%")
     print(f"  🩺 Health:         {health.upper()}")
     if alerts:
         print(f"  🚨 Alerts ({len(alerts)}):")
-        for a in alerts: print(f"     • {a}")
-    if recs:
-        print(f"  💡 Recs ({len(recs)}):")
-        for r in recs: print(f"     • {r}")
+        for a in alerts:
+            print(f"     • {a}")
 
     # ── Slack ─────────────────────────────────────────────────────────────
-    payload = build_message(
+    payload = build_message_v2(
         period_label=label,
-        stage1_funnel=stage1_funnel,
-        stage2_funnel=stage2_funnel,
-        stage3_funnel=stage3_funnel,
-        platform_insights=platform_insights,
-        device_tier_insights=device_tier_insights,
+        device_table=device_table,
+        cur_otp=cur_otp,
+        cur_email_otp=cur_email,
+        cur_email_sso=cur_sso,
+        cur_signup=cur_signup,
         wow=wow,
         alerts=alerts,
-        recommendations=recs,
         health=health,
     )
 

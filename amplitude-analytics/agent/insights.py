@@ -366,3 +366,157 @@ def get_overall_health(
     if alert_count >= 1 or warning_count >= 2 or reg_pct <= -10:
         return "warning"
     return "healthy"
+
+
+# ===========================================================================
+# V2 — Compact device-tier milestone report
+# ===========================================================================
+
+def compute_device_funnel_table(
+    otp_by_device:       Dict[str, int],   # VERIFY_OTP_SUCCESS
+    email_otp_by_device: Dict[str, int],   # EMAIL_VERIFY_OTP_SUCCESS
+    email_sso_by_device: Dict[str, int],   # SSO_VERIFICATION_SUCCESS
+    signup_by_device:    Dict[str, int],   # SETUP_SECURE_PIN_SUCCESS
+) -> List[Dict]:
+    """
+    Aggregate all 4 milestone event counts by device tier.
+
+    Returns an ordered list of tier rows, each containing:
+      tier, label, otp, email_otp, email_sso, email_total, signup,
+      otp_to_email_pct, email_to_signup_pct
+    """
+    def _agg(by_device: Dict[str, int]) -> Dict[str, int]:
+        totals: Dict[str, int] = {}
+        for device, count in by_device.items():
+            tier = classify_device_type(device)
+            totals[tier] = totals.get(tier, 0) + count
+        return totals
+
+    otp_t       = _agg(otp_by_device)
+    email_otp_t = _agg(email_otp_by_device)
+    email_sso_t = _agg(email_sso_by_device)
+    signup_t    = _agg(signup_by_device)
+
+    display_order = [
+        "low_android", "mid_android", "premium_android",
+        "ios", "web", "other_android", "other",
+    ]
+
+    rows = []
+    for tier in display_order:
+        otp         = otp_t.get(tier, 0)
+        email_otp   = email_otp_t.get(tier, 0)
+        email_sso   = email_sso_t.get(tier, 0)
+        email_total = email_otp + email_sso
+        signup      = signup_t.get(tier, 0)
+
+        if otp == 0 and email_total == 0 and signup == 0:
+            continue
+
+        otp_to_email   = round(email_total / otp * 100, 1) if otp > 0 else 0.0
+        email_to_signup = round(signup / email_total * 100, 1) if email_total > 0 else 0.0
+
+        rows.append({
+            "tier":              tier,
+            "label":             DEVICE_TIER_LABELS.get(tier, tier),
+            "otp":               otp,
+            "email_otp":         email_otp,
+            "email_sso":         email_sso,
+            "email_total":       email_total,
+            "signup":            signup,
+            "otp_to_email_pct":  otp_to_email,
+            "email_to_signup_pct": email_to_signup,
+        })
+
+    return rows
+
+
+def compute_wow_totals(
+    cur_otp:    int, cur_email: int, cur_signup: int,
+    prev_otp:   int, prev_email: int, prev_signup: int,
+) -> Dict[str, Dict]:
+    """Return WoW dict for the 3 key milestone totals."""
+    def _delta(curr, prev):
+        delta = curr - prev
+        pct   = round(delta / prev * 100, 1) if prev > 0 else 0.0
+        return {"current": curr, "previous": prev, "delta": delta, "pct_change": pct}
+
+    return {
+        "otp":    _delta(cur_otp,    prev_otp),
+        "email":  _delta(cur_email,  prev_email),
+        "signup": _delta(cur_signup, prev_signup),
+    }
+
+
+def generate_alerts_v2(
+    wow:       Dict[str, Dict],
+    device_table: List[Dict],
+    sso_pct:   float,
+) -> List[str]:
+    """Alerts for the v2 compact report."""
+    alerts: List[str] = []
+
+    # Registration WoW drop
+    reg = wow.get("signup", {})
+    pct = reg.get("pct_change", 0)
+    if pct <= -20:
+        alerts.append(
+            f"🔴 *Registrations down {pct:.1f}% WoW* — "
+            f"{reg.get('previous', 0):,} → {reg.get('current', 0):,}"
+        )
+    elif pct <= -10:
+        alerts.append(
+            f"⚠️ *Registrations down {pct:.1f}% WoW* — "
+            f"{reg.get('previous', 0):,} → {reg.get('current', 0):,}"
+        )
+
+    # Email→Signup conversion anomalies by tier
+    for row in device_table:
+        e2s = row["email_to_signup_pct"]
+        if row["email_total"] < 10:
+            continue   # too few users to be meaningful
+        if e2s < 70:
+            alerts.append(
+                f"⚠️ *{row['label']}* Email→Signup conversion low: "
+                f"*{e2s}%*  ({row['email_total']:,} email verified, "
+                f"{row['signup']:,} registered)"
+            )
+
+    # Low Android new-user ratio (OTP→Email)
+    for row in device_table:
+        if row["tier"] == "low_android" and row["otp"] > 0:
+            new_ratio = row["otp_to_email_pct"]
+            if new_ratio < 10:
+                alerts.append(
+                    f"💡 *Low Android* new signup ratio very low: "
+                    f"only *{new_ratio}%* of OTP verifications are new users"
+                )
+
+    # SSO adoption note (informational, not alert)
+    if sso_pct > 5:
+        alerts.append(
+            f"📈 *Google SSO adoption: {sso_pct}%* of email verifications "
+            f"(launched 7 days ago)"
+        )
+
+    alerts.sort(key=lambda x: (0 if x.startswith("🔴") else 1))
+    return alerts
+
+
+def get_overall_health_v2(
+    wow:          Dict[str, Dict],
+    device_table: List[Dict],
+) -> str:
+    """Return 'healthy' | 'warning' | 'critical' for v2 report."""
+    reg_pct     = wow.get("signup", {}).get("pct_change", 0)
+    low_email2signup = [
+        r["email_to_signup_pct"]
+        for r in device_table
+        if r["email_total"] >= 10 and r["email_to_signup_pct"] < 70
+    ]
+
+    if reg_pct <= -20 or len(low_email2signup) >= 3:
+        return "critical"
+    if reg_pct <= -10 or len(low_email2signup) >= 1:
+        return "warning"
+    return "healthy"

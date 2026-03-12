@@ -235,3 +235,180 @@ def _device_tier_table(device_tier_insights: Dict[str, Dict]) -> str:
         )
 
     return "```\n" + "\n".join(lines) + "\n```"
+
+
+# ---------------------------------------------------------------------------
+# V2 — Compact milestone report
+# ---------------------------------------------------------------------------
+
+_WOW_ARROW_V2 = lambda pct: "📈" if pct > 2 else ("📉" if pct < -2 else "→")
+
+def build_message_v2(
+    period_label:  str,
+    device_table:  List[Dict],
+    cur_otp:       int,
+    cur_email_otp: int,
+    cur_email_sso: int,
+    cur_signup:    int,
+    wow:           Dict[str, Dict],
+    alerts:        List[str],
+    health:        str,
+) -> Dict:
+    """
+    Compact 3-section Slack report:
+      1. Header — registrations, WoW, health
+      2. Device Tier Table — milestones × tiers (with OTP/SSO split)
+      3. Insights & Alerts
+    """
+    blocks = []
+
+    # ── HEADER ────────────────────────────────────────────────────────────
+    blocks.append({
+        "type": "header",
+        "text": {
+            "type": "plain_text",
+            "text": f"📊 Aspero Signup Funnel — {period_label}",
+            "emoji": True,
+        },
+    })
+
+    # ── SUMMARY LINE ──────────────────────────────────────────────────────
+    wow_reg   = wow.get("signup", {})
+    wow_pct   = wow_reg.get("pct_change", 0)
+    wow_arrow = _WOW_ARROW_V2(wow_pct)
+
+    cur_email_total = cur_email_otp + cur_email_sso
+    sso_pct   = round(cur_email_sso / cur_email_total * 100, 1) if cur_email_total > 0 else 0
+    email_pct = round(cur_email_otp / cur_email_total * 100, 1) if cur_email_total > 0 else 0
+
+    blocks.append({
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": (
+                f"{_STATUS_ICON[health]}  *{_STATUS_LABEL[health]}*\n"
+                f"*{cur_signup:,}* registrations  "
+                f"{wow_arrow} *{wow_pct:+.1f}%* WoW  |  "
+                f"📧 Email: OTP *{email_pct}%* · SSO *{sso_pct}%*"
+            ),
+        },
+    })
+    blocks.append({"type": "divider"})
+
+    # ── DEVICE TIER TABLE ─────────────────────────────────────────────────
+    blocks.append(_md_section(
+        "*📲 Milestone Funnel by Device Tier  ·  Last 7 Days*\n"
+        "_OTP ✓ = Mobile Verified (new + returning)   "
+        "Email ✓ & Signup ✓ = New users only_"
+    ))
+    blocks.append(_md_section(
+        _milestone_table(device_table, cur_otp, cur_email_otp, cur_email_sso, cur_signup)
+    ))
+    blocks.append({"type": "divider"})
+
+    # ── WEEK-OVER-WEEK ────────────────────────────────────────────────────
+    wow_rows = ["*📆 Week-over-Week  ·  vs prior 7 days*\n"]
+    _WOW_LABELS = [
+        ("otp",    "Mobile Verified (OTP ✓)"),
+        ("email",  "Email Verified"),
+        ("signup", "Registrations ⭐"),
+    ]
+    for key, lbl in _WOW_LABELS:
+        w = wow.get(key, {})
+        if not w:
+            continue
+        arrow = _WOW_ARROW_V2(w["pct_change"])
+        wow_rows.append(
+            f"  {arrow}  {lbl}:  "
+            f"{w['previous']:,} → *{w['current']:,}*  "
+            f"(*{w['pct_change']:+.1f}%*)"
+        )
+    blocks.append(_md_section("\n".join(wow_rows)))
+
+    # ── ALERTS ────────────────────────────────────────────────────────────
+    if alerts:
+        blocks.append({"type": "divider"})
+        alert_lines = ["*🔍 Insights & Alerts*"]
+        alert_lines.extend(f"• {a}" for a in alerts)
+        blocks.append(_md_section("\n".join(alert_lines)))
+
+    # ── FOOTER ────────────────────────────────────────────────────────────
+    blocks.append({
+        "type": "context",
+        "elements": [{
+            "type": "mrkdwn",
+            "text": (
+                f"Amplitude Project 506002  ·  "
+                f"Generated {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
+            ),
+        }],
+    })
+
+    return {"blocks": blocks}
+
+
+def _milestone_table(
+    device_table:  List[Dict],
+    cur_otp:       int,
+    cur_email_otp: int,
+    cur_email_sso: int,
+    cur_signup:    int,
+) -> str:
+    """Fixed-width device tier × milestone table for Slack code block."""
+    if not device_table:
+        return "_No device data available_"
+
+    # Column widths
+    C_TIER  = 15
+    C_OTP   =  7
+    C_EOTP  =  8
+    C_ESSO  =  8
+    C_PIN   =  7
+    C_O2E   =  7
+    C_E2P   =  7
+
+    def _row(tier_label, otp, eotp, esso, pin, o2e, e2p, bold=False):
+        o2e_s = f"{o2e}%"
+        e2p_s = f"{e2p}%"
+        line = (
+            f"{tier_label:{C_TIER}}"
+            f"{otp:>{C_OTP},}"
+            f"{eotp:>{C_EOTP},}"
+            f"{esso:>{C_ESSO},}"
+            f"{pin:>{C_PIN},}"
+            f"{o2e_s:>{C_O2E}}"
+            f"{e2p_s:>{C_E2P}}"
+        )
+        return line
+
+    sep = "─" * (C_TIER + C_OTP + C_EOTP + C_ESSO + C_PIN + C_O2E + C_E2P)
+    header = (
+        f"{'Tier':{C_TIER}}"
+        f"{'OTP ✓':>{C_OTP}}"
+        f"{'Eml OTP':>{C_EOTP}}"
+        f"{'Eml SSO':>{C_ESSO}}"
+        f"{'Signup':>{C_PIN}}"
+        f"{'OTP→Em':>{C_O2E}}"
+        f"{'Em→PIN':>{C_E2P}}"
+    )
+
+    lines = [header, sep]
+    for row in device_table:
+        lines.append(_row(
+            row["label"],
+            row["otp"],
+            row["email_otp"],
+            row["email_sso"],
+            row["signup"],
+            row["otp_to_email_pct"],
+            row["email_to_signup_pct"],
+        ))
+
+    # Totals
+    total_email = cur_email_otp + cur_email_sso
+    o2e_total = round(total_email / cur_otp * 100, 1) if cur_otp > 0 else 0.0
+    e2p_total = round(cur_signup / total_email * 100, 1) if total_email > 0 else 0.0
+    lines.append(sep)
+    lines.append(_row("TOTAL", cur_otp, cur_email_otp, cur_email_sso, cur_signup, o2e_total, e2p_total))
+
+    return "```\n" + "\n".join(lines) + "\n```"

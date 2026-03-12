@@ -40,6 +40,18 @@ STAGE3_STEPS = [
 # All steps combined (used for WoW comparison funnel)
 FUNNEL_STEPS = STAGE1_STEPS + STAGE2_STEPS + STAGE3_STEPS
 
+# ── Milestone events for the compact device-tier report ──────────────────────
+# VERIFY_OTP_SUCCESS    = Mobile verified (new + returning)
+# EMAIL_VERIFY_OTP_SUCCESS = Email verified via OTP (new users only)
+# SSO_VERIFICATION_SUCCESS = Email verified via Google SSO (new users only)
+# SETUP_SECURE_PIN_SUCCESS = Registration complete (new users only)
+MILESTONE_EVENTS = {
+    "otp":     "VERIFY_OTP_SUCCESS",
+    "email_otp": "EMAIL_VERIFY_OTP_SUCCESS",
+    "email_sso": "SSO_VERIFICATION_SUCCESS",
+    "signup":  "SETUP_SECURE_PIN_SUCCESS",
+}
+
 # ── Failure events — tracked via segmentation API ─────────────────────────────
 FAILURE_EVENTS = [
     "VERIFY_OTP_FAILED",
