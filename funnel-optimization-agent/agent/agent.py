@@ -10,11 +10,8 @@ Report flow:
   2. Python computes derived metrics (WoW deltas, device tier classification,
      Em%, PIN%, SSO adoption %, etc.)
   3. Python pre-formats the device tier table (monospace code block)
-  4. Executive briefing posted first (pure Python, always available):
+  4. Executive briefing posted to Slack (pure Python, always available):
      ~18 lines, verdict-first, for CEO/CPO/CMO
-  5. Detailed report posted second:
-     a. Claude via AWS Bedrock generates narrative report (if AWS creds set)
-     b. Fallback: Block Kit format via build_message_v2() if no AWS creds
 
 Funnel milestones:
   OTP          = VERIFY_OTP_SUCCESS           (new + returning users)
@@ -39,7 +36,6 @@ Required env vars:
   AWS_ACCESS_KEY_ID      AWS key for Bedrock/Claude (optional — falls back to Block Kit)
 """
 
-import json
 import os
 import sys
 from datetime import datetime, timedelta
@@ -54,7 +50,7 @@ from insights import (
     generate_wins_v2,
     get_overall_health_v2,
 )
-from slack import build_exec_report, build_message_v2, send_to_slack
+from slack import build_exec_report, send_to_slack
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +80,6 @@ def run(dry_run: bool = False):
     api_key          = os.getenv("AMPLITUDE_API_KEY")
     secret_key       = os.getenv("AMPLITUDE_SECRET_KEY")
     webhook_url      = os.getenv("SLACK_WEBHOOK_URL")
-    aws_key          = os.getenv("AWS_ACCESS_KEY_ID")
 
     missing = [k for k, v in {
         "AMPLITUDE_API_KEY":    api_key,
@@ -255,68 +250,8 @@ def run(dry_run: bool = False):
     print(f"  🏦 KYC:            Start {kyc_start_pct}% ({kyc_start_wow_pp:+.1f}pp WoW) | Done {kyc_done_pct}% ({kyc_done_wow_pp:+.1f}pp WoW)")
     print(f"  🩺 Health:         {health.upper()}")
 
-    # ── Pre-format device table ───────────────────────────────────────────
-    from slack import _milestone_table
-    device_table_formatted = _milestone_table(
-        device_table, cur_email_page, cur_email_total, cur_signup
-    )
-
-    # ── Build data dict for LLM reporter ─────────────────────────────────
+    # ── Build executive briefing ──────────────────────────────────────────
     now_ist = datetime.utcnow() + timedelta(hours=5, minutes=30)
-    data = {
-        "report_date":           now_ist.strftime("%a %b %-d, %Y"),
-        "period":                label,
-        "cur_signup":            cur_signup,
-        "cur_otp":               cur_otp,
-        "cur_email_total":       cur_email_total,
-        "cur_email_page":        cur_email_page,
-        "cur_sso":               cur_sso,
-        "sso_pct":               sso_pct,
-        "wow": {
-            "signup": wow.get("signup", {}),
-            "otp":    wow.get("otp",    {}),
-            "email":  wow.get("email",  {}),
-        },
-        "prior_prior": {
-            "signup": prev_prev_signup,
-            "otp":    prev_prev_otp,
-        },
-        "yesterday": {
-            "signup":     yesterday_snapshot.get("registrations", {}),
-            "otp":        yesterday_snapshot.get("otp_verified",  {}),
-            "email_conv": yesterday_snapshot.get("email_conv",    {}),
-        },
-        "device_table": [
-            {
-                "tier":     r["tier"],
-                "label":    r["label"],
-                "mob_verif": r["email_page"],
-                "email":    r["email_total"],
-                "signup":   r["signup"],
-                "em_pct":   r["newuser_to_email_pct"],
-                "pin_pct":  r["email_to_signup_pct"],
-            }
-            for r in device_table
-        ],
-        "device_table_formatted":  device_table_formatted,
-        "sso_available":           days_since_sso >= 0,
-        "days_since_sso":          days_since_sso,
-        "days_remaining_sso":      days_remaining,
-        "kyc": {
-            "cohort_signups":       prior_signup,
-            "cohort_starts":        kyc_cohort_starts,
-            "cur_completions":      kyc_cur_completions,
-            "start_pct":            kyc_start_pct,
-            "done_pct":             kyc_done_pct,
-            "start_wow_pp":         kyc_start_wow_pp,
-            "done_wow_pp":          kyc_done_wow_pp,
-            "v2_recent":            kyc_v2_recent,
-            "days_since_v2":        days_since_kyc_v2,
-        },
-        "generated_at":            now_ist.strftime("%Y-%m-%d %H:%M"),
-    }
-
-    # ── Build executive briefing (pure Python — always available) ────────
     exec_payload = build_exec_report(
         period_label=label,
         cur_signup=cur_signup,
@@ -338,53 +273,18 @@ def run(dry_run: bool = False):
         generated_at=now_ist.strftime("%Y-%m-%d %H:%M"),
     )
 
-    # ── Build detailed report (LLM if available, Block Kit fallback) ──────
+    # ── Post executive briefing ───────────────────────────────────────────
     if dry_run:
         print("\n── DRY RUN — executive briefing ─────────────────────────────────────")
         print(exec_payload["text"])
-        print("\n── DRY RUN — data dict ──────────────────────────────────────────────")
-        print(json.dumps(data, indent=2, ensure_ascii=False))
         print("────────────────────────────────────────────────────────────────────")
         return
 
-    report_text = None
-    if aws_key:
-        try:
-            print("\n🤖  Generating narrative report via Claude...")
-            from reporter import generate_report
-            report_text = generate_report(data)
-            print("✅  LLM report generated.")
-        except Exception as e:
-            print(f"⚠️  LLM report failed ({e}), falling back to Block Kit format...")
-
-    if report_text:
-        detailed_payload = {"text": report_text}
-    else:
-        detailed_payload = build_message_v2(
-            period_label=label,
-            device_table=device_table,
-            cur_otp=cur_otp,
-            cur_email_page=cur_email_page,
-            cur_email_otp=cur_email,
-            cur_email_sso=cur_sso,
-            cur_signup=cur_signup,
-            wow=wow,
-            yesterday_snapshot=yesterday_snapshot,
-            alerts=alerts,
-            wins=wins,
-            health=health,
-        )
-
-    # ── Post: executive first, detailed second ────────────────────────────
     print("\n📤  Sending executive briefing to Slack...")
-    if not send_to_slack(webhook_url, exec_payload):
-        print("⚠️  Executive briefing failed to send — continuing with detailed report...")
-
-    print("📤  Sending detailed report to Slack...")
-    if send_to_slack(webhook_url, detailed_payload):
-        print("✅  Reports sent!")
+    if send_to_slack(webhook_url, exec_payload):
+        print("✅  Report sent!")
     else:
-        print("❌  Failed to send detailed report to Slack")
+        print("❌  Failed to send report to Slack")
         sys.exit(1)
 
 
