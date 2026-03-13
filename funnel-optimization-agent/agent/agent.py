@@ -45,7 +45,7 @@ import sys
 from datetime import datetime, timedelta
 
 from amplitude import AmplitudeClient
-from config import MILESTONE_EVENTS
+from config import MILESTONE_EVENTS, KYC_EVENTS, KYC_FUNNEL_V2_DATE
 from insights import (
     compute_device_funnel_table,
     compute_wow_totals,
@@ -153,6 +153,18 @@ def run(dry_run: bool = False):
     yest_signup = client.get_event_totals(MILESTONE_EVENTS["signup"],    yest_str, yest_str)
     print(f"    otp={yest_otp:,}  email={yest_email:,}  sso={yest_sso:,}  signup={yest_signup:,}")
 
+    # ── Fetch [13–16] — KYC funnel (7-day cohort offset window) ──────────
+    # Offset window: signups 8–14d ago (cohort) → KYC completions 1–7d ago.
+    # This gives each cohort exactly 7 days to complete KYC.
+    # prior_signup (already fetched above) is the cohort denominator.
+    print(f"\n📡  [13–16] KYC funnel (cohort {prev_start}→{prev_end}, completions {cur_start}→{cur_end})...")
+    kyc_cohort_starts       = client.get_event_totals(KYC_EVENTS["kyc_start"],    prev_start,      prev_end)
+    kyc_cur_completions     = client.get_event_totals(KYC_EVENTS["kyc_complete"], cur_start,       cur_end)
+    kyc_prior_cohort_starts = client.get_event_totals(KYC_EVENTS["kyc_start"],    prev_prev_start, prev_prev_end)
+    kyc_prior_completions   = client.get_event_totals(KYC_EVENTS["kyc_complete"], prev_start,      prev_end)
+    print(f"    cohort_starts={kyc_cohort_starts:,}  cur_done={kyc_cur_completions:,}  "
+          f"prior_cohort_starts={kyc_prior_cohort_starts:,}  prior_done={kyc_prior_completions:,}")
+
     # ── Compute metrics ───────────────────────────────────────────────────
     print("\n🔍  Computing metrics...")
 
@@ -190,8 +202,21 @@ def run(dry_run: bool = False):
     days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
     days_remaining = max(0, 30 - days_since_sso)
 
+    # KYC metrics — offset window cohort analysis
+    kyc_start_pct       = round(kyc_cohort_starts       / prior_signup              * 100, 1) if prior_signup              > 0 else 0.0
+    kyc_done_pct        = round(kyc_cur_completions      / kyc_cohort_starts         * 100, 1) if kyc_cohort_starts         > 0 else 0.0
+    prior_kyc_start_pct = round(kyc_prior_cohort_starts  / prev_prev_signup          * 100, 1) if prev_prev_signup          > 0 else 0.0
+    prior_kyc_done_pct  = round(kyc_prior_completions    / kyc_prior_cohort_starts   * 100, 1) if kyc_prior_cohort_starts   > 0 else 0.0
+    kyc_start_wow_pp    = round(kyc_start_pct - prior_kyc_start_pct, 1)
+    kyc_done_wow_pp     = round(kyc_done_pct  - prior_kyc_done_pct,  1)
+
+    # Flag if current report period overlaps with the Mar 10 funnel change
+    days_since_kyc_v2   = (date.today() - KYC_FUNNEL_V2_DATE).days
+    kyc_v2_recent       = 0 <= days_since_kyc_v2 <= 14
+
     print(f"\n  📊 Signups:        {cur_signup:,}")
     print(f"  📧 Email method:   OTP {email_pct}% | SSO {sso_pct}%")
+    print(f"  🏦 KYC:            Start {kyc_start_pct}% ({kyc_start_wow_pp:+.1f}pp WoW) | Done {kyc_done_pct}% ({kyc_done_wow_pp:+.1f}pp WoW)")
     print(f"  🩺 Health:         {health.upper()}")
 
     # ── Pre-format device table ───────────────────────────────────────────
@@ -241,6 +266,17 @@ def run(dry_run: bool = False):
         "sso_available":           days_since_sso >= 0,
         "days_since_sso":          days_since_sso,
         "days_remaining_sso":      days_remaining,
+        "kyc": {
+            "cohort_signups":       prior_signup,
+            "cohort_starts":        kyc_cohort_starts,
+            "cur_completions":      kyc_cur_completions,
+            "start_pct":            kyc_start_pct,
+            "done_pct":             kyc_done_pct,
+            "start_wow_pp":         kyc_start_wow_pp,
+            "done_wow_pp":          kyc_done_wow_pp,
+            "v2_recent":            kyc_v2_recent,
+            "days_since_v2":        days_since_kyc_v2,
+        },
         "generated_at":            now_ist.strftime("%Y-%m-%d %H:%M"),
     }
 
@@ -253,6 +289,12 @@ def run(dry_run: bool = False):
         yesterday_snapshot=yesterday_snapshot,
         device_table=device_table,
         sso_pct=sso_pct,
+        kyc_start_pct=kyc_start_pct,
+        kyc_done_pct=kyc_done_pct,
+        kyc_start_wow_pp=kyc_start_wow_pp,
+        kyc_done_wow_pp=kyc_done_wow_pp,
+        kyc_cohort_signups=prior_signup,
+        kyc_v2_recent=kyc_v2_recent,
         alerts=alerts,
         wins=wins,
         health=health,
