@@ -71,6 +71,14 @@ def main():
         cpa = f"₹{c['cost_per_in_app_action']:,.0f}" if c['in_app_actions'] > 0 else "—"
         print(f"  {c['campaign_name'][:40]:<40}  ₹{c['cost']:>10,}  {c['ctr_pct']:>5}%  {c['in_app_actions']:>14,.0f}  {cpa:>11}")
 
+    print("\n── In-App Actions Breakdown (all tracked events) ─────────────")
+    print(f"  Total spend ₹{cw['cost']:,} across {data['total_all_conversions']:,.0f} total in-app events")
+    print(f"  {'In-App Action':<55}  {'Count':>7}  {'Cost/Action':>11}")
+    print(f"  {'-'*55}  {'-'*7}  {'-'*11}")
+    for a in data["in_app_actions_breakdown"]:
+        cpa_str = f"₹{a['cost_per_action']:,.0f}"
+        print(f"  {a['action'][:55]:<55}  {a['count']:>7,.0f}  {cpa_str:>11}")
+
     print("\n── Device Split ──────────────────────────────────────────────")
     for device, m in data["device_split"].items():
         print(f"  {device:<10}  {m['impressions']:>10,} impr  {m['clicks']:>6,} clicks  ₹{m['cost']:>8,.0f}")

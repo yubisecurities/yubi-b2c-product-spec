@@ -11,6 +11,7 @@ from connectors.google_ads import (
     get_ad_performance,
     get_device_segments,
     get_geo_segments,
+    get_conversion_breakdown,
 )
 import config
 
@@ -86,6 +87,9 @@ def run() -> dict:
     print("[campaign_analysis] Fetching geo segments...")
     geo_rows = get_geo_segments(current_start, current_end)
 
+    print("[campaign_analysis] Fetching conversion action breakdown...")
+    conv_breakdown_rows = get_conversion_breakdown(current_start, current_end)
+
     # ── Aggregates ────────────────────────────────────────────────────────────
     current_totals = _aggregate_campaigns(current_campaigns)
     prior_totals   = _aggregate_campaigns(prior_campaigns)
@@ -99,6 +103,33 @@ def run() -> dict:
         "roas_pct":                  _pct_change(current_totals["roas"],                  prior_totals["roas"]),
         "ctr_pct":                   _pct_change(current_totals["ctr"],                   prior_totals["ctr"]),
     }
+
+    # ── In-app action totals (all_conversions across all actions) ─────────────
+    action_totals: dict[str, float] = {}
+    for row in conv_breakdown_rows:
+        action = row["conversion_action"]
+        action_totals[action] = action_totals.get(action, 0) + row["all_conversions"]
+
+    total_all_conversions = sum(action_totals.values())
+    total_cost = current_totals["cost"]
+    cost_per_action_breakdown = {
+        action: round(total_cost / count, 2) if count > 0 else 0
+        for action, count in action_totals.items()
+    }
+
+    # Sort by count descending, keep top 20
+    in_app_actions_breakdown = sorted(
+        [
+            {
+                "action":           action,
+                "count":            round(count, 0),
+                "cost_per_action":  cost_per_action_breakdown[action],
+            }
+            for action, count in action_totals.items()
+        ],
+        key=lambda x: x["count"],
+        reverse=True,
+    )[:20]
 
     # ── Top campaigns by spend ────────────────────────────────────────────────
     top_campaigns = sorted(current_campaigns, key=lambda r: r["cost_micros"], reverse=True)[:5]
@@ -135,13 +166,15 @@ def run() -> dict:
         })
 
     return {
-        "current_week":  current_totals,
-        "prior_week":    prior_totals,
-        "wow":           wow,
-        "top_campaigns": top_campaigns,
-        "device_split":  device_split,
-        "geo_split":     geo_rows[:10],
-        "top_ads":       top_ads_clean,
+        "current_week":           current_totals,
+        "prior_week":             prior_totals,
+        "wow":                    wow,
+        "top_campaigns":          top_campaigns,
+        "in_app_actions_breakdown": in_app_actions_breakdown,
+        "total_all_conversions":  total_all_conversions,
+        "device_split":           device_split,
+        "geo_split":              geo_rows[:10],
+        "top_ads":                top_ads_clean,
         "date_range": {
             "current_start": current_start,
             "current_end":   current_end,

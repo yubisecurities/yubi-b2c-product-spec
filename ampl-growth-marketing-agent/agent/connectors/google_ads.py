@@ -279,6 +279,53 @@ def get_geo_segments(start_date: str, end_date: str) -> list[dict]:
     return rows
 
 
+def get_conversion_breakdown(start_date: str, end_date: str) -> list[dict]:
+    """
+    Fetch all_conversions broken down by conversion action name across all campaigns.
+    Uses all_conversions (not just primary) to surface every tracked in-app event.
+
+    Returns:
+        List of dicts sorted by all_conversions desc:
+        {
+            "campaign_name":       str,
+            "conversion_action":   str,
+            "all_conversions":     float,
+            "primary_conversions": float,   # counted in metrics.conversions
+        }
+    Note: cost_micros cannot be combined with segments.conversion_action_name in GAQL.
+    Cost per action is computed in campaign_analysis.py using total spend / per-action count.
+    """
+    client = _build_client()
+    ga_service = client.get_service("GoogleAdsService")
+    customer_id = config.GOOGLE_ADS_CUSTOMER_ID
+
+    query = (
+        "SELECT campaign.name, segments.conversion_action_name, "
+        "metrics.all_conversions, metrics.conversions "
+        "FROM campaign "
+        f"WHERE segments.date BETWEEN '{start_date}' AND '{end_date}' "
+        "AND campaign.status != 'REMOVED' "
+        "AND metrics.all_conversions > 0 "
+        "ORDER BY campaign.name, metrics.all_conversions DESC"
+    )
+
+    rows = []
+    try:
+        response = ga_service.search(customer_id=customer_id, query=query)
+        for row in response:
+            m = row.metrics
+            rows.append({
+                "campaign_name":       row.campaign.name,
+                "conversion_action":   row.segments.conversion_action_name,
+                "all_conversions":     m.all_conversions,
+                "primary_conversions": m.conversions,
+            })
+    except GoogleAdsException as ex:
+        _handle_error(ex)
+
+    return rows
+
+
 def _handle_error(ex: GoogleAdsException) -> None:
     print(f"[GoogleAds] Request failed — ID: {ex.request_id}")
     for error in ex.failure.errors:
