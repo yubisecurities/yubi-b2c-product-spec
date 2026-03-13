@@ -589,25 +589,26 @@ def build_exec_report(
     lines.extend(kyc_lines)
 
     lines.append("")
-    lines.append("━━━━━━━━━━━━━━━")
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
     # Top 2 alerts only
     top_alerts = alerts[:2]
     if top_alerts:
-        lines.append("*Needs Attention*")
+        lines.append("")
+        lines.append("*🚨 Needs Attention*")
         for a in top_alerts:
             lines.append(f"• {a}")
 
     # Top 2 wins only
     top_wins = wins[:2]
     if top_wins:
-        if top_alerts:
-            lines.append("")
-        lines.append("*Wins*")
+        lines.append("")
+        lines.append("*🏆 Wins*")
         for w in top_wins:
             lines.append(f"• {w}")
 
     if not top_alerts and not top_wins:
+        lines.append("")
         lines.append("_No urgent actions — funnel running normally._")
 
     # ── Full funnel summary table ─────────────────────────────────────────
@@ -635,11 +636,17 @@ def build_exec_report(
                 f"  {kd:>{C_COL}}"
             )
         lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("")
         lines.append("*Funnel by Segment (rolling 7d)*")
-        lines.append("_Mob→Em: email conv · Em→PIN: signup rate · →KYCSt: KYC intent · →KYCDo: KYC completion_")
         lines.append("```\n" + "\n".join(rows) + "\n```")
+        lines.append(
+            "_Mob→Em: email conv rate · Em→PIN: signup rate · "
+            "→KYCSt/→KYCDo: rolling window, use for relative tier comparison only_"
+        )
 
-    lines.append("━━━━━━━━━━━━━━━")
+    lines.append("")
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     lines.append(f"_Amplitude 506002 · {generated_at} IST_")
 
     return {"text": "\n".join(lines)}
