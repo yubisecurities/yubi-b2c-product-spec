@@ -1,0 +1,7 @@
+# Never commit real credentials
+.env
+
+# Output exports
+../exports/
+__pycache__/
+*.pyc
