@@ -6,6 +6,163 @@ Updated incrementally — newest entries at the top.
 
 ---
 
+## Executive Briefing Report (Two-Report Architecture)
+
+### Decision: Pure Python executive report posted first, detailed Block Kit/LLM report second
+**Date:** Mar 13 2026
+**Status:** ✅ Implemented
+
+**Problem statement:**
+The existing Block Kit report is data-rich but not executive-friendly. The CEO/CPO/CMO audience
+needs a verdict-first, ~18-line morning briefing — not a table-first data dump.
+
+**Decision: Two reports, same channel, sequential posting**
+
+```
+Report 1 (exec briefing):   pure Python → verdict-first text → posted first
+Report 2 (detailed):        Block Kit / LLM fallback → full table → posted second
+```
+
+Both reports post to the same `SLACK_WEBHOOK_URL`. No separate webhook needed during testing.
+
+**Why pure Python for the exec report (not LLM):**
+
+| Option | Verdict |
+|--------|---------|
+| A: LLM via AWS Bedrock | Needs AWS IAM setup, introduces non-determinism, may vary tone day to day |
+| B: LLM via Anthropic SDK | Needs separate Anthropic console account + new API key |
+| C: Pure Python template | ✅ Chosen — deterministic, always runs, consistent format execs can pattern-match |
+
+Executives reading a daily briefing benefit from *consistency*, not prose quality.
+The same layout every day means faster scanning. A rule-based template guarantees this.
+
+**Exec report format (18 lines):**
+```
+*Aspero Signup Briefing — Fri 13 Mar 2026*   🟢/🟡/🔴
+──────────────────────────────────────────
+*Signups:* 312  (+8.3% WoW)
+*Yesterday:* 44 (slightly above daily average of 41)
+*Trend:* 3rd consecutive week of growth
+*Audience:* Premium+iOS = 47% of signups — healthy mix
+──────────────────────────────────────────
+*KYC Funnel (offset cohort, 7-day window)*
+• KYC Start:    71.2%  (+2.1pp WoW)
+• KYC Done:     58.4%  (-0.8pp WoW)
+──────────────────────────────────────────
+*Needs Attention*
+• 🔴 Android OTP→Email: 24.3% (below 26% warning threshold)
+──────────────────────────────────────────
+*Wins*
+• ✅ Google SSO adoption: 28.4% (Day 7 of 30, target: 40%)
+──────────────────────────────────────────
+*Funnel by Segment*
+```Segment         Mob→Em   Em→PIN   →KYCSt   →KYCDo
+Low Android       38.2%    82.1%    61.2%    52.3%
+...```
+```
+
+**Status logic:** 🟢 = no critical alerts, 🟡 = warnings present, 🔴 = critical alerts
+
+**Consecutive trend detection:** Compares current-week WoW % to prior-prior week WoW % to detect
+"3rd consecutive week of growth/decline" — requires no extra API calls (prior-prior signup count
+already fetched for WoW calculation).
+
+**Yesterday context:** Shown as "above/below/well below daily average" (average = cur_signup / 7).
+"Well below" = yesterday < 70% of average. Adds reading context without requiring a separate API call.
+
+**NOT done and why:**
+- ❌ Separate Slack channel for exec report — same channel for testing; can split later
+- ❌ LLM for exec briefing — consistency > prose; execs pattern-match the format daily
+- ❌ Yesterday KYC snapshot — KYC is a lagged conversion (days to complete), daily snapshot is noisy
+  and not comparable to same-session events like signup. Not shown anywhere in exec report.
+
+---
+
+## KYC Funnel Tracking
+
+### Decision: Offset window cohort (signups 8–14d ago → completions 1–7d ago)
+**Date:** Mar 13 2026
+**Status:** ✅ Implemented
+
+**KYC events:**
+- `KYC_RISKDETAILS_SUBMIT` = KYC start (first risk details form submitted)
+- `KYC_READY_FOR_TRADE` = KYC complete (account activated and ready to trade)
+
+**Why offset window (not rolling 7d for headline metrics):**
+KYC completion is a lagged conversion — users typically complete it days after signup, not in the
+same session. Using the same 7-day window for both signups and KYC completions would mix cohorts:
+recent signups who haven't had time to complete KYC would drag down the completion rate.
+
+**Offset window logic:**
+```
+current_period:       today-7d  → today-1d  (7 days)
+prior_signup_cohort:  today-14d → today-8d  (7 days — signups who had 7d to start KYC)
+prior_prior_cohort:   today-21d → today-15d (7 days — for WoW comparison)
+
+kyc_start_pct  = KYC_RISKDETAILS_SUBMIT [today-14d → today-8d] / signups [today-14d → today-8d]
+kyc_done_pct   = KYC_READY_FOR_TRADE    [today-7d  → today-1d] / KYC_RISKDETAILS_SUBMIT [today-14d → today-8d]
+```
+Numerator and denominator are from *different* date windows, intentionally.
+The denominator (signups 8–14d ago) represents the cohort that *entered* KYC; the numerator
+(completions 1–7d ago) represents what *came out* of that cohort. This correctly measures the
+7-day conversion window that users actually have.
+
+User confirmed: 7 days is the appropriate completion window for Aspero's users.
+
+**WoW calculation:** Shift both windows back by 7 days. Same offset logic applied.
+
+**API calls for KYC (4 total, segmentation API — NOT funnel API):**
+```
+[13] KYC_RISKDETAILS_SUBMIT  today-14d → today-8d  (current cohort starts)
+[14] KYC_READY_FOR_TRADE     today-7d  → today-1d  (current period completions)
+[15] KYC_RISKDETAILS_SUBMIT  today-21d → today-15d (prior cohort starts, for WoW)
+[16] KYC_READY_FOR_TRADE     today-14d → today-8d  (prior period completions, for WoW)
+```
+
+**Why NOT Funnel API for KYC steps:**
+The `n` (conversion window) parameter on the Funnel API causes HTTP 400. Without it, the Funnel
+API uses Amplitude's default conversion window which may not match our 7-day requirement.
+Segmentation API calls per event give us full control over the date range.
+Step-level KYC health monitoring (flagging individual steps down by >X%) is a future item.
+
+**KYC funnel V2 (Mar 10 2026):**
+Wet signature step (`KYC_WET_SIGNATURE_VERIFIED`) was added between Liveness and eSign.
+`KYC_DEMAT_VERIFIED` moved from step 5 to step 8 (after eSign). Total steps: 8 → 9.
+
+Handled via `kyc_v2_recent` flag:
+```python
+days_since_kyc_v2 = (date.today() - KYC_FUNNEL_V2_DATE).days   # KYC_FUNNEL_V2_DATE = 2026-03-10
+kyc_v2_recent     = 0 <= days_since_kyc_v2 <= 14               # shows context note for 14 days, then disappears
+```
+The exec report auto-appends `_(funnel restructured Mar 10 — completion rate may be temporarily lower)_`
+while `kyc_v2_recent` is True, then silently removes it after 14 days.
+
+**KYC by device type (rolling 7d — NOT offset window):**
+For the funnel tier table (relative comparison), rolling 7d is used instead of offset window.
+Rationale: The table shows *relative* performance across tiers (Low vs Mid vs Premium Android),
+not absolute cohort conversion. Rolling window is simpler and good enough for tier ranking.
+Offset window for this table would require 2× more API calls with minimal added insight.
+
+**Total API calls: 18 (up from 12)**
+```
+[1–4]   Device-type funnels — OTP/SSO paths, current + prior 7d (funnel API)
+[5–12]  Milestone event totals — 4 events × current + prior 7d (segmentation API)
+[13–16] KYC cohort — start + complete × current + prior offset windows (segmentation API)
+[17–18] KYC by device type — starts + completions, rolling 7d (segmentation API)
+```
+
+**NOT done and why:**
+- ❌ No yesterday KYC snapshot — KYC takes days to complete; a single-day number is noisy and
+  not comparable to same-session signup events
+- ❌ No offset window for device-tier KYC — rolling 7d is sufficient for relative tier comparison;
+  offset adds 2+ API calls for marginal accuracy gain in a ranking table
+- ❌ No step-level KYC health monitoring (yet) — would need events for each intermediate KYC step
+  and a WoW comparison. Added to Open Questions for future build.
+- ❌ No separate KYC Slack report — KYC metrics added to existing exec report (same channel,
+  same message); a dedicated KYC deep-dive report may come later
+
+---
+
 ## LLM Report Generation via AWS Bedrock
 
 ### Decision: Replace Block Kit template with Claude narrative report (via AWS Bedrock)
@@ -375,7 +532,9 @@ ad-hoc runs or testing.
 | # | Question | Notes |
 |---|----------|-------|
 | 1 | Expand `DEVICE_TIER_PATTERNS` to classify more models | Would reduce the Unknown Android bucket. Could periodically audit the `unknown_android` rows in Amplitude to find common unclassified models and add them |
-| 2 | Post-KYC funnel tracking | Current funnel is pre-KYC (registration only). KYC completion → investment is the next funnel stage not yet tracked |
+| 2 | ~~Post-KYC funnel tracking~~ | ✅ Partially resolved (Mar 13 2026) — KYC start% and KYC done% now tracked via offset window cohort. KYC by device tier added to funnel table. Remaining: step-level health monitoring (see #6) and KYC→investment funnel |
 | 3 | ~~OTP "new users only" via API~~ | ✅ Resolved — `EMAIL_PAGE_VIEW` matches first-time OTP at 99.5% and is accessible via API. Used as denominator for `New%` column. See EMAIL_PAGE_VIEW section above. |
 | 4 | City/geography breakdown | Business context says Metro + Tier-1 is target; could add city-level breakdown if Amplitude has geo data |
 | 5 | ~~SSO adoption 30-day tracker~~ | ✅ Resolved — `SSO_LAUNCH_DATE = date(2026, 3, 6)` in config.py; days since launch and days remaining auto-computed in alerts/wins |
+| 6 | Step-level KYC health monitoring | Flag if any individual KYC step's conversion drops >X% WoW. Requires events for each intermediate step (9 steps in V2 funnel). Options: Funnel API (current period, no `n` param) or Segmentation per step with WoW. Decision pending. |
+| 7 | AWS Bedrock credentials for detailed LLM report | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` not yet added to GitHub Actions secrets. Detailed report currently runs Block Kit fallback. Add when IAM access is available. |
