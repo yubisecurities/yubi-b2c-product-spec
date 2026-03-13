@@ -475,6 +475,7 @@ def build_exec_report(
     kyc_done_wow_pp:    float,
     kyc_cohort_signups: int,
     kyc_v2_recent:      bool,
+    kyc_tier_data:      List[Dict],
     alerts:             List[str],
     wins:               List[str],
     health:             str,
@@ -608,6 +609,35 @@ def build_exec_report(
 
     if not top_alerts and not top_wins:
         lines.append("_No urgent actions — funnel running normally._")
+
+    # ── Full funnel summary table ─────────────────────────────────────────
+    if kyc_tier_data:
+        C_TIER, C_COL = 16, 7
+        header = (
+            f"{'Segment':<{C_TIER}}"
+            f"  {'Mob→Em':>{C_COL}}"
+            f"  {'Em→PIN':>{C_COL}}"
+            f"  {'→KYCSt':>{C_COL}}"
+            f"  {'→KYCDo':>{C_COL}}"
+        )
+        sep  = "─" * (C_TIER + (C_COL + 2) * 4)
+        rows = [header, sep]
+        for r in kyc_tier_data:
+            em  = f"{r['em_pct']}%"
+            pin = f"{r['pin_pct']}%"
+            ks  = f"{r['kyc_start']}%" if r["kyc_start"] > 0 else "—"
+            kd  = f"{r['kyc_done']}%"  if r["kyc_done"]  > 0 else "—"
+            rows.append(
+                f"{r['label']:<{C_TIER}}"
+                f"  {em:>{C_COL}}"
+                f"  {pin:>{C_COL}}"
+                f"  {ks:>{C_COL}}"
+                f"  {kd:>{C_COL}}"
+            )
+        lines.append("")
+        lines.append("*Funnel by Segment (rolling 7d)*")
+        lines.append("_Mob→Em: email conv · Em→PIN: signup rate · →KYCSt: KYC intent · →KYCDo: KYC completion_")
+        lines.append("```\n" + "\n".join(rows) + "\n```")
 
     lines.append("━━━━━━━━━━━━━━━")
     lines.append(f"_Amplitude 506002 · {generated_at} IST_")
