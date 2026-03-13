@@ -5,6 +5,7 @@ Fetches current + prior week data from Google Ads, computes WoW deltas,
 and returns a structured summary ready for LLM analysis or Slack posting.
 """
 
+from typing import Optional
 from connectors.google_ads import (
     get_campaign_performance,
     get_ad_performance,
@@ -19,7 +20,7 @@ def _micros_to_inr(micros: int) -> float:
     return round(micros / 1_000_000, 2)
 
 
-def _pct_change(current: float, prior: float) -> float | None:
+def _pct_change(current: float, prior: float) -> Optional[float]:
     if prior == 0:
         return None
     return round(((current - prior) / prior) * 100, 1)

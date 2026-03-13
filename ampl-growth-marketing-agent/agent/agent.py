@@ -11,6 +11,7 @@ Run:
 import json
 import os
 import sys
+from typing import Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -87,7 +88,7 @@ def main():
     print("\n[agent] Run complete.")
 
 
-def _fmt_pct(v: float | None) -> str:
+def _fmt_pct(v: Optional[float]) -> str:
     if v is None:
         return "n/a"
     sign = "+" if v >= 0 else ""
