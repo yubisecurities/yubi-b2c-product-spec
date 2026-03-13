@@ -165,6 +165,14 @@ def run(dry_run: bool = False):
     print(f"    cohort_starts={kyc_cohort_starts:,}  cur_done={kyc_cur_completions:,}  "
           f"prior_cohort_starts={kyc_prior_cohort_starts:,}  prior_done={kyc_prior_completions:,}")
 
+    # ── Fetch [17–18] — KYC by device type (rolling 7d, for tier table) ──
+    # Rolling same window as signup device table — used for relative tier
+    # comparison only, not the headline cohort metric.
+    print(f"\n📡  [17–18] KYC by device type (rolling {cur_start}→{cur_end})...")
+    kyc_starts_by_device = client.get_event_by_device_type(KYC_EVENTS["kyc_start"],    cur_start, cur_end)
+    kyc_done_by_device   = client.get_event_by_device_type(KYC_EVENTS["kyc_complete"], cur_start, cur_end)
+    print(f"    kyc_start_devices={len(kyc_starts_by_device)}  kyc_done_devices={len(kyc_done_by_device)}")
+
     # ── Compute metrics ───────────────────────────────────────────────────
     print("\n🔍  Computing metrics...")
 
@@ -213,6 +221,34 @@ def run(dry_run: bool = False):
     # Flag if current report period overlaps with the Mar 10 funnel change
     days_since_kyc_v2   = (date.today() - KYC_FUNNEL_V2_DATE).days
     kyc_v2_recent       = 0 <= days_since_kyc_v2 <= 14
+
+    # KYC by device tier (rolling 7d) — for full funnel summary table
+    from insights import classify_device_type
+    from config import DEVICE_TIER_LABELS
+    kyc_tier_starts: dict = {}
+    kyc_tier_done:   dict = {}
+    for device, count in kyc_starts_by_device.items():
+        tier = classify_device_type(device)
+        kyc_tier_starts[tier] = kyc_tier_starts.get(tier, 0) + count
+    for device, count in kyc_done_by_device.items():
+        tier = classify_device_type(device)
+        kyc_tier_done[tier] = kyc_tier_done.get(tier, 0) + count
+
+    # Build combined tier table: Em%, PIN%, KYC Start%, KYC Done% per tier
+    kyc_tier_data = []
+    for row in device_table:
+        tier   = row["tier"]
+        starts = kyc_tier_starts.get(tier, 0)
+        done   = kyc_tier_done.get(tier, 0)
+        ks_pct = round(starts / row["signup"] * 100, 1) if row["signup"] > 0 else 0.0
+        kd_pct = round(done   / starts        * 100, 1) if starts        > 0 else 0.0
+        kyc_tier_data.append({
+            "label":     row["label"],
+            "em_pct":    row["newuser_to_email_pct"],
+            "pin_pct":   row["email_to_signup_pct"],
+            "kyc_start": ks_pct,
+            "kyc_done":  kd_pct,
+        })
 
     print(f"\n  📊 Signups:        {cur_signup:,}")
     print(f"  📧 Email method:   OTP {email_pct}% | SSO {sso_pct}%")
@@ -295,6 +331,7 @@ def run(dry_run: bool = False):
         kyc_done_wow_pp=kyc_done_wow_pp,
         kyc_cohort_signups=prior_signup,
         kyc_v2_recent=kyc_v2_recent,
+        kyc_tier_data=kyc_tier_data,
         alerts=alerts,
         wins=wins,
         health=health,
