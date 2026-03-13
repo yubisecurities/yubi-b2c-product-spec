@@ -526,8 +526,10 @@ def compute_kyc_steps_wow(
     for step_key in KYC_STEP_ORDER:
         cur  = cur_counts.get(step_key, 0)
         prev = prev_counts.get(step_key, 0)
-        if cur == 0 and prev == 0:
-            continue  # step not active in either window (e.g. V2 step before Mar 10)
+        if prev == 0:
+            continue  # no prior-period data → can't compute meaningful WoW
+            # This skips V2-only steps (wet_sig, demat) for ~3 weeks post-Mar-10
+            # while prev_prev window is still pre-V2. Auto-resolves after ~3 weeks.
         cur_pct  = round(cur  / cur_signups  * 100, 1) if cur_signups  > 0 else 0.0
         prev_pct = round(prev / prev_signups * 100, 1) if prev_signups > 0 else 0.0
         wow_pp   = round(cur_pct - prev_pct, 1)
