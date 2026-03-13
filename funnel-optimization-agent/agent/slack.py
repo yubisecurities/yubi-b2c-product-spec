@@ -453,3 +453,128 @@ def _milestone_table(
             "or mid-range device._"
         )
     return table_text
+
+
+# ---------------------------------------------------------------------------
+# Executive briefing — plain mrkdwn, verdict-first, ~18 lines
+# Audience: CEO, CPO, CMO, core leadership
+# Answers: growing or declining? audience quality? what to do today?
+# ---------------------------------------------------------------------------
+
+def build_exec_report(
+    period_label:       str,
+    cur_signup:         int,
+    wow:                Dict[str, Dict],
+    prev_prev_signup:   int,
+    yesterday_snapshot: Dict,
+    device_table:       List[Dict],
+    sso_pct:            float,
+    alerts:             List[str],
+    wins:               List[str],
+    health:             str,
+    generated_at:       str,
+) -> Dict:
+    """
+    Executive daily briefing as plain mrkdwn text (not Block Kit).
+    Posted first to the same channel so it sits above the detailed report.
+    Pure Python — no LLM required.
+    """
+    now      = datetime.utcnow()
+    weekday  = now.strftime("%a")
+    date_str = now.strftime("%b %-d")
+
+    _STATUS_EMOJI = {"healthy": "🟢", "warning": "🟡", "critical": "🔴"}
+    status_emoji  = _STATUS_EMOJI.get(health, "🟡")
+
+    # ── Signup headline ───────────────────────────────────────────────────
+    wow_reg  = wow.get("signup", {})
+    wow_pct  = wow_reg.get("pct_change", 0)
+    prev_signup = wow_reg.get("previous", 0)
+
+    if wow_pct > 2:
+        wow_str = f"↑{abs(wow_pct):.1f}% WoW"
+    elif wow_pct < -2:
+        wow_str = f"↓{abs(wow_pct):.1f}% WoW"
+    else:
+        wow_str = "→ flat WoW"
+
+    # Consecutive trend using prior-prior week
+    prev_wow_pct = (
+        round((prev_signup - prev_prev_signup) / prev_prev_signup * 100, 1)
+        if prev_prev_signup > 0 else 0
+    )
+    if wow_pct <= -5 and prev_wow_pct <= -5:
+        trajectory = "2nd consecutive weekly decline"
+    elif wow_pct >= 5 and prev_wow_pct >= 5:
+        trajectory = "2nd consecutive week of growth"
+    elif wow_pct <= -5 and prev_wow_pct >= 5:
+        trajectory = "reversal from last week's growth"
+    elif wow_pct >= 5 and prev_wow_pct <= -5:
+        trajectory = "reversal from last week's decline"
+    else:
+        trajectory = "broadly stable"
+
+    # Yesterday vs daily average
+    s_reg       = yesterday_snapshot.get("registrations", {})
+    yest_val    = s_reg.get("value", 0)
+    yest_avg    = int(s_reg.get("avg", 0))
+    yest_status = s_reg.get("status", "healthy")
+    if yest_status == "healthy":
+        yest_note = f"Yesterday's *{yest_val:,}* was above the *{yest_avg:,}/day* average — pace may be stabilizing."
+    elif yest_status == "warning":
+        yest_note = f"Yesterday's *{yest_val:,}* was below the *{yest_avg:,}/day* average — trend continuing."
+    else:
+        yest_note = f"Yesterday's *{yest_val:,}* was well below the *{yest_avg:,}/day* average — decline accelerating."
+
+    # ── Audience quality (1 line) ─────────────────────────────────────────
+    total_signup = sum(r["signup"] for r in device_table)
+    premium_ios  = sum(r["signup"] for r in device_table
+                       if r["tier"] in ("premium_android", "ios"))
+    if total_signup > 0:
+        pi_pct = round(premium_ios / total_signup * 100, 1)
+        if pi_pct >= 50:
+            audience_line = f"Target audience (iOS + Premium Android) = *{pi_pct}%* of signups — acquisition quality healthy."
+        elif pi_pct >= 35:
+            audience_line = f"Target audience (iOS + Premium Android) = *{pi_pct}%* of signups — channel mix worth watching."
+        else:
+            audience_line = f"⚠️ Target audience (iOS + Premium Android) = only *{pi_pct}%* of signups — low-LTV devices dominating, review acquisition channels."
+    else:
+        audience_line = ""
+
+    # ── Assemble report ───────────────────────────────────────────────────
+    lines = [
+        f"{status_emoji} *ASPERO DAILY · {weekday} {date_str}*",
+        "",
+        f"*Signups: {cur_signup:,}* — {wow_str}, {trajectory}.",
+        yest_note,
+    ]
+
+    if audience_line:
+        lines.append(audience_line)
+
+    lines.append("")
+    lines.append("━━━━━━━━━━━━━━━")
+
+    # Top 2 alerts only
+    top_alerts = alerts[:2]
+    if top_alerts:
+        lines.append("*Needs Attention*")
+        for a in top_alerts:
+            lines.append(f"• {a}")
+
+    # Top 2 wins only
+    top_wins = wins[:2]
+    if top_wins:
+        if top_alerts:
+            lines.append("")
+        lines.append("*Wins*")
+        for w in top_wins:
+            lines.append(f"• {w}")
+
+    if not top_alerts and not top_wins:
+        lines.append("_No urgent actions — funnel running normally._")
+
+    lines.append("━━━━━━━━━━━━━━━")
+    lines.append(f"_Amplitude 506002 · {generated_at} IST_")
+
+    return {"text": "\n".join(lines)}
