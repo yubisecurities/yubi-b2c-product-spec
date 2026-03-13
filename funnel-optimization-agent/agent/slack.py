@@ -548,6 +548,14 @@ def build_exec_report(
         audience_line = ""
 
     # ── Assemble report ───────────────────────────────────────────────────
+    _SEP = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # ── Style rules ───────────────────────────────────────────────────────
+    # Bold:    all key numbers (counts and percentages)
+    # Italics: caveats and footnotes only
+    # Emoji:   severity signals inside bullets only (not on section headers)
+    # _SEP:    before every major section
+
     lines = [
         f"{status_emoji} *ASPERO DAILY · {weekday} {date_str}*",
         "",
@@ -566,60 +574,62 @@ def build_exec_report(
             return f"↓{abs(pp):.1f}pp WoW"
         return "→ flat WoW"
 
-    kyc_lines = ["", "*KYC (7-day cohort)*"]
+    lines.append("")
+    lines.append(_SEP)
+    lines.append("")
+    lines.append("*KYC (7-day cohort)*")
     if kyc_cohort_signups > 0:
-        kyc_lines.append(
-            f"*{kyc_start_pct}%* of last week's {kyc_cohort_signups:,} signups started KYC "
+        lines.append(
+            f"*{kyc_start_pct}%* of last week's *{kyc_cohort_signups:,}* signups started KYC "
             f"({_wow_pp(kyc_start_wow_pp)})."
         )
         if kyc_start_pct > 0:
-            kyc_lines.append(
+            lines.append(
                 f"Of those, *{kyc_done_pct}%* completed within 7 days "
                 f"({_wow_pp(kyc_done_wow_pp)})."
             )
         if kyc_v2_recent:
-            kyc_lines.append(
+            lines.append(
                 "_KYC flow updated Mar 10 (wet signature step added, 8→9 steps) — "
                 "completion dip this week may be structural, not a bug._"
             )
     else:
-        kyc_lines.append("_KYC data not yet available for this cohort window._")
+        lines.append("_KYC data not yet available for this cohort window._")
 
-    lines.extend(kyc_lines)
-
-    lines.append("")
-    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-    # Top 2 alerts only
+    # ── Needs Attention ───────────────────────────────────────────────────
     top_alerts = alerts[:2]
+    lines.append("")
+    lines.append(_SEP)
+    lines.append("")
+    lines.append("*Needs Attention*")
     if top_alerts:
-        lines.append("")
-        lines.append("*🚨 Needs Attention*")
         for a in top_alerts:
             lines.append(f"• {a}")
+    else:
+        lines.append("_No issues flagged._")
 
-    # Top 2 wins only
+    # ── Wins ──────────────────────────────────────────────────────────────
     top_wins = wins[:2]
+    lines.append("")
+    lines.append(_SEP)
+    lines.append("")
+    lines.append("*Wins*")
     if top_wins:
-        lines.append("")
-        lines.append("*🏆 Wins*")
         for w in top_wins:
             lines.append(f"• {w}")
-
-    if not top_alerts and not top_wins:
-        lines.append("")
-        lines.append("_No urgent actions — funnel running normally._")
+    else:
+        lines.append("_No notable wins this period._")
 
     # ── Signup funnel by segment table ───────────────────────────────────
     if device_table:
         C_TIER, C_COL = 16, 7
-        header = (
+        col_sep = "─" * (C_TIER + (C_COL + 2) * 2)
+        header  = (
             f"{'Segment':<{C_TIER}}"
             f"  {'Mob→Em':>{C_COL}}"
             f"  {'Em→PIN':>{C_COL}}"
         )
-        sep  = "─" * (C_TIER + (C_COL + 2) * 2)
-        rows = [header, sep]
+        rows = [header, col_sep]
         for r in device_table:
             em  = f"{r['newuser_to_email_pct']}%"
             pin = f"{r['email_to_signup_pct']}%"
@@ -628,15 +638,36 @@ def build_exec_report(
                 f"  {em:>{C_COL}}"
                 f"  {pin:>{C_COL}}"
             )
+
+        # Weighted total row
+        total_em_page = sum(r["email_page"]  for r in device_table)
+        total_email   = sum(r["email_total"] for r in device_table)
+        total_signup  = sum(r["signup"]      for r in device_table)
+        total_em_pct  = round(total_email  / total_em_page * 100, 1) if total_em_page > 0 else 0.0
+        total_pin_pct = round(total_signup / total_email   * 100, 1) if total_email   > 0 else 0.0
+        rows.append(col_sep)
+        rows.append(
+            f"{'TOTAL':<{C_TIER}}"
+            f"  {f'{total_em_pct}%':>{C_COL}}"
+            f"  {f'{total_pin_pct}%':>{C_COL}}"
+        )
+
         lines.append("")
-        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append(_SEP)
         lines.append("")
         lines.append("*Signup Funnel by Segment (rolling 7d)*")
         lines.append("```\n" + "\n".join(rows) + "\n```")
         lines.append("_Mob→Em: mobile verified → email verified · Em→PIN: email verified → signup_")
 
+        has_unknown = any("†" in r["label"] for r in device_table)
+        if has_unknown:
+            lines.append(
+                "_† Unknown Android: device model not matched by classifier — "
+                "most likely Low tier (flagship and popular mid-range models are explicitly listed)._"
+            )
+
     lines.append("")
-    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    lines.append(f"_Amplitude 506002 · {generated_at} IST_")
+    lines.append(_SEP)
+    lines.append(f"Amplitude 506002 · {generated_at} IST")
 
     return {"text": "\n".join(lines)}
