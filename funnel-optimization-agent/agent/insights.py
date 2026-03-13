@@ -505,12 +505,33 @@ def compute_wow_totals(
 
 
 def generate_alerts_v2(
-    wow:          Dict[str, Dict],
-    device_table: List[Dict],
-    sso_pct:      float,
+    wow:              Dict[str, Dict],
+    device_table:     List[Dict],
+    sso_pct:          float,
+    kyc_start_pct:    float = 0.0,
+    kyc_done_pct:     float = 0.0,
+    kyc_start_wow_pp: float = 0.0,
+    kyc_done_wow_pp:  float = 0.0,
 ) -> List[str]:
     """Alerts for the v2 compact report, informed by business context (business_context.md)."""
     alerts: List[str] = []
+
+    # ── KYC drop alerts ───────────────────────────────────────────────────
+    if kyc_done_wow_pp <= -5.0 and kyc_done_pct > 0:
+        alerts.append(
+            f"🔴 *KYC Completion Rate down {abs(kyc_done_wow_pp):.1f}pp* WoW to *{kyc_done_pct}%* — "
+            f"investigate drop-offs in KYC flow"
+        )
+    elif kyc_done_wow_pp <= -2.0 and kyc_done_pct > 0:
+        alerts.append(
+            f"⚠️ *KYC Completion Rate down {abs(kyc_done_wow_pp):.1f}pp* WoW to *{kyc_done_pct}%*"
+        )
+
+    if kyc_start_wow_pp <= -5.0 and kyc_start_pct > 0:
+        alerts.append(
+            f"⚠️ *KYC Start Rate down {abs(kyc_start_wow_pp):.1f}pp* WoW to *{kyc_start_pct}%* — "
+            f"fewer signups proceeding to KYC"
+        )
 
     # ── Signup WoW drop ───────────────────────────────────────────────────
     reg = wow.get("signup", {})
@@ -675,9 +696,13 @@ def compute_yesterday_snapshot(
 
 
 def generate_wins_v2(
-    wow:          Dict[str, Dict],
-    device_table: List[Dict],
-    sso_pct:      float,
+    wow:              Dict[str, Dict],
+    device_table:     List[Dict],
+    sso_pct:          float,
+    kyc_start_pct:    float = 0.0,
+    kyc_done_pct:     float = 0.0,
+    kyc_start_wow_pp: float = 0.0,
+    kyc_done_wow_pp:  float = 0.0,
 ) -> List[str]:
     """Positive signals worth calling out — informed by business context."""
     wins: List[str] = []
@@ -688,6 +713,18 @@ def generate_wins_v2(
         wins.append(
             f"Signups up *{reg['pct_change']:+.1f}%* WoW "
             f"({reg['previous']:,} → {reg['current']:,})"
+        )
+
+    # KYC improvements
+    if kyc_start_wow_pp >= 2.0:
+        wins.append(
+            f"KYC Start Rate up *↑{kyc_start_wow_pp:.1f}pp* WoW to *{kyc_start_pct}%* — "
+            f"more signups proceeding to KYC"
+        )
+    if kyc_done_wow_pp >= 2.0:
+        wins.append(
+            f"KYC Completion Rate up *↑{kyc_done_wow_pp:.1f}pp* WoW to *{kyc_done_pct}%* — "
+            f"post-update completion improving"
         )
 
     # SSO quality win — always show when any users are on SSO.

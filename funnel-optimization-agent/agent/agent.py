@@ -190,8 +190,16 @@ def run(dry_run: bool = False):
     email_pct = round(cur_email / cur_email_total * 100, 1) if cur_email_total > 0 else 0.0
 
     health = get_overall_health_v2(wow, device_table)
-    alerts = generate_alerts_v2(wow, device_table, sso_pct)
-    wins   = generate_wins_v2(wow, device_table, sso_pct)
+    alerts = generate_alerts_v2(
+        wow, device_table, sso_pct,
+        kyc_start_pct=kyc_start_pct, kyc_done_pct=kyc_done_pct,
+        kyc_start_wow_pp=kyc_start_wow_pp, kyc_done_wow_pp=kyc_done_wow_pp,
+    )
+    wins   = generate_wins_v2(
+        wow, device_table, sso_pct,
+        kyc_start_pct=kyc_start_pct, kyc_done_pct=kyc_done_pct,
+        kyc_start_wow_pp=kyc_start_wow_pp, kyc_done_wow_pp=kyc_done_wow_pp,
+    )
 
     from datetime import date
     from config import SSO_LAUNCH_DATE
