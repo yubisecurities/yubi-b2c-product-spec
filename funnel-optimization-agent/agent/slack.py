@@ -469,6 +469,12 @@ def build_exec_report(
     yesterday_snapshot: Dict,
     device_table:       List[Dict],
     sso_pct:            float,
+    kyc_start_pct:      float,
+    kyc_done_pct:       float,
+    kyc_start_wow_pp:   float,
+    kyc_done_wow_pp:    float,
+    kyc_cohort_signups: int,
+    kyc_v2_recent:      bool,
     alerts:             List[str],
     wins:               List[str],
     health:             str,
@@ -551,6 +557,35 @@ def build_exec_report(
 
     if audience_line:
         lines.append(audience_line)
+
+    # ── KYC block ─────────────────────────────────────────────────────────
+    def _wow_pp(pp: float) -> str:
+        if pp > 0.5:
+            return f"↑{abs(pp):.1f}pp WoW"
+        if pp < -0.5:
+            return f"↓{abs(pp):.1f}pp WoW"
+        return "→ flat WoW"
+
+    kyc_lines = ["", "*KYC (7-day cohort)*"]
+    if kyc_cohort_signups > 0:
+        kyc_lines.append(
+            f"*{kyc_start_pct}%* of last week's {kyc_cohort_signups:,} signups started KYC "
+            f"({_wow_pp(kyc_start_wow_pp)})."
+        )
+        if kyc_start_pct > 0:
+            kyc_lines.append(
+                f"Of those, *{kyc_done_pct}%* completed within 7 days "
+                f"({_wow_pp(kyc_done_wow_pp)})."
+            )
+        if kyc_v2_recent:
+            kyc_lines.append(
+                "_KYC flow updated Mar 10 (wet signature step added, 8→9 steps) — "
+                "completion dip this week may be structural, not a bug._"
+            )
+    else:
+        kyc_lines.append("_KYC data not yet available for this cohort window._")
+
+    lines.extend(kyc_lines)
 
     lines.append("")
     lines.append("━━━━━━━━━━━━━━━")
