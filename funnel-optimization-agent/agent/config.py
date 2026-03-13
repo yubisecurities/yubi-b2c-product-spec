@@ -59,12 +59,38 @@ MILESTONE_EVENTS = {
 }
 
 # ── KYC funnel milestone events ──────────────────────────────────────────────
-# KYC happens after SETUP_SECURE_PIN_SUCCESS. We track start + complete only.
-# Offset window: signups 8-14d ago → KYC completions 1-7d ago (7-day cohort).
+# KYC happens after SETUP_SECURE_PIN_SUCCESS.
+# Offset window for Done%: signups 8-14d ago → KYC completions 1-7d ago (7-day cohort).
+# Intermediate steps use same-window analysis (all in prev_start → prev_end).
+#
+# V2 funnel (9 steps, post Mar 10 2026):
+#   Step 1: KYC_RISKDETAILS_SUBMIT   (risk/personal details)
+#   Step 2: KYC_EMAIL_VERIFIED        (email re-verify within KYC)
+#   Step 3: KYC_AML_VERIFIED          (AML/background check)
+#   Step 4: KYC_WET_SIGNATURE_VERIFIED (new Mar 10 — between Liveness and eSign)
+#   Step 8: KYC_DEMAT_VERIFIED         (moved from step 5 to step 8 on Mar 10)
+#   Step 9: KYC_READY_FOR_TRADE        (account active, ready to trade)
 KYC_EVENTS = {
     "kyc_start":    "KYC_RISKDETAILS_SUBMIT",
+    "kyc_email":    "KYC_EMAIL_VERIFIED",
+    "kyc_aml":      "KYC_AML_VERIFIED",
+    "kyc_wet_sig":  "KYC_WET_SIGNATURE_VERIFIED",   # V2 only (post Mar 10 2026)
+    "kyc_demat":    "KYC_DEMAT_VERIFIED",
     "kyc_complete": "KYC_READY_FOR_TRADE",
 }
+
+# Display labels for each KYC step (used in alerts)
+KYC_STEP_LABELS = {
+    "kyc_start":   "Risk Details",
+    "kyc_email":   "Email Verify",
+    "kyc_aml":     "AML Check",
+    "kyc_wet_sig": "Wet Signature",
+    "kyc_demat":   "Demat Verify",
+    "kyc_complete":"Ready to Trade",
+}
+
+# Ordered list of intermediate steps to analyze (excludes completion — tracked separately)
+KYC_STEP_ORDER = ["kyc_start", "kyc_email", "kyc_aml", "kyc_wet_sig", "kyc_demat"]
 
 # KYC funnel restructured Mar 10 2026: KYC_WET_SIGNATURE_VERIFIED added between
 # Liveness and eSign. KYC_DEMAT_VERIFIED moved from step 5 to step 8 (after eSign).

@@ -20,12 +20,13 @@ Funnel milestones:
   Email ✓ SSO  = SSO_VERIFICATION_SUCCESS     (new users only, launched 6 Mar 2026)
   Signup ✓     = SETUP_SECURE_PIN_SUCCESS     (new users only)
 
-API calls: 16 total
+API calls: 24 total
   [1–2]   Device funnel: OTP→EmailPage→Email→Signup, OTP→EmailPage→SSO→Signup (current 7d)
   [3–6]   Event totals for prior 7d (WoW comparison)
   [7–8]   Event totals for prior-prior 7d (consecutive trend detection)
   [9–12]  Event totals for yesterday (daily snapshot)
   [13–16] KYC cohort — start + complete × current + prior offset windows
+  [17–24] KYC intermediate steps — 4 events × current + prior cohort windows
 
 Usage:
   python3 agent.py [--dry-run]
@@ -39,14 +40,15 @@ Required env vars:
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from amplitude import AmplitudeClient
-from config import MILESTONE_EVENTS, KYC_EVENTS, KYC_FUNNEL_V2_DATE
+from config import MILESTONE_EVENTS, KYC_EVENTS, KYC_STEP_ORDER, KYC_FUNNEL_V2_DATE, SSO_LAUNCH_DATE
 from insights import (
     compute_device_funnel_table,
     compute_wow_totals,
     compute_yesterday_snapshot,
+    compute_kyc_steps_wow,
     generate_alerts_v2,
     generate_wins_v2,
     get_overall_health_v2,
@@ -111,7 +113,7 @@ def run(dry_run: bool = False):
     # device_family is shown in the Amplitude UI but returns empty data from
     # the Funnel API. classify_device_type() handles both marketing names
     # and raw hardware codes (SM-S901B, 2201116TG, RMX3511).
-    print("\n📡  [1/12] OTP → Email Page → Email OTP → Signup funnel by device type...")
+    print("\n📡  [1/24] OTP → Email Page → Email OTP → Signup funnel by device type...")
     otp_email_funnel = client.get_funnel_by_device_type(
         [MILESTONE_EVENTS["otp"], MILESTONE_EVENTS["email_page"],
          MILESTONE_EVENTS["email_otp"], MILESTONE_EVENTS["signup"]],
@@ -119,7 +121,7 @@ def run(dry_run: bool = False):
     )
     print(f"    device_types={len(otp_email_funnel)}")
 
-    print("\n📡  [2/12] OTP → Email Page → Email SSO → Signup funnel by device type...")
+    print("\n📡  [2/24] OTP → Email Page → Email SSO → Signup funnel by device type...")
     otp_sso_funnel = client.get_funnel_by_device_type(
         [MILESTONE_EVENTS["otp"], MILESTONE_EVENTS["email_page"],
          MILESTONE_EVENTS["email_sso"], MILESTONE_EVENTS["signup"]],
@@ -149,17 +151,34 @@ def run(dry_run: bool = False):
     yest_signup = client.get_event_totals(MILESTONE_EVENTS["signup"],    yest_str, yest_str)
     print(f"    otp={yest_otp:,}  email={yest_email:,}  sso={yest_sso:,}  signup={yest_signup:,}")
 
-    # ── Fetch [13–16] — KYC funnel (7-day cohort offset window) ──────────
-    # Offset window: signups 8–14d ago (cohort) → KYC completions 1–7d ago.
-    # This gives each cohort exactly 7 days to complete KYC.
-    # prior_signup (already fetched above) is the cohort denominator.
-    print(f"\n📡  [13–16] KYC funnel (cohort {prev_start}→{prev_end}, completions {cur_start}→{cur_end})...")
+    # ── Fetch [13–16] — KYC headline (offset window cohort) ──────────────
+    # KYC Start%:  RISKDETAILS_SUBMIT [8-14d ago] / Signups [8-14d ago]
+    #              = "What % of last week's signups started KYC in the same week?"
+    # KYC Done%:   READY_FOR_TRADE [1-7d ago] / RISKDETAILS_SUBMIT [8-14d ago]
+    #              = "Of starters 8-14d ago, what % completed within 7 days?" (offset window)
+    print(f"\n📡  [13–16] KYC headline (cohort {prev_start}→{prev_end}, completions {cur_start}→{cur_end})...")
     kyc_cohort_starts       = client.get_event_totals(KYC_EVENTS["kyc_start"],    prev_start,      prev_end)
     kyc_cur_completions     = client.get_event_totals(KYC_EVENTS["kyc_complete"], cur_start,       cur_end)
     kyc_prior_cohort_starts = client.get_event_totals(KYC_EVENTS["kyc_start"],    prev_prev_start, prev_prev_end)
     kyc_prior_completions   = client.get_event_totals(KYC_EVENTS["kyc_complete"], prev_start,      prev_end)
     print(f"    cohort_starts={kyc_cohort_starts:,}  cur_done={kyc_cur_completions:,}  "
           f"prior_cohort_starts={kyc_prior_cohort_starts:,}  prior_done={kyc_prior_completions:,}")
+
+    # ── Fetch [17–24] — KYC intermediate steps (same-window WoW) ─────────
+    # All intermediate steps use the same cohort window (prev/prev_prev).
+    # Same-window (not offset) — these steps happen within days of signup.
+    # WoW comparison identifies which specific step deteriorated.
+    # kyc_wet_sig / kyc_demat are V2-only (post Mar 10); will return 0 for earlier windows.
+    print(f"\n📡  [17–24] KYC intermediate steps (cur cohort {prev_start}→{prev_end}, "
+          f"prior cohort {prev_prev_start}→{prev_prev_end})...")
+    kyc_steps_cur  = {}
+    kyc_steps_prev = {}
+    for step_key in KYC_STEP_ORDER:
+        event = KYC_EVENTS[step_key]
+        kyc_steps_cur[step_key]  = client.get_event_totals(event, prev_start,      prev_end)
+        kyc_steps_prev[step_key] = client.get_event_totals(event, prev_prev_start, prev_prev_end)
+    print("    cur: " + "  ".join(f"{k}={v:,}" for k, v in kyc_steps_cur.items()))
+    print("    prev:" + "  ".join(f"{k}={v:,}" for k, v in kyc_steps_prev.items()))
 
     # ── Compute metrics ───────────────────────────────────────────────────
     print("\n🔍  Computing metrics...")
@@ -189,24 +208,7 @@ def run(dry_run: bool = False):
     sso_pct   = round(cur_sso   / cur_email_total * 100, 1) if cur_email_total > 0 else 0.0
     email_pct = round(cur_email / cur_email_total * 100, 1) if cur_email_total > 0 else 0.0
 
-    health = get_overall_health_v2(wow, device_table)
-    alerts = generate_alerts_v2(
-        wow, device_table, sso_pct,
-        kyc_start_pct=kyc_start_pct, kyc_done_pct=kyc_done_pct,
-        kyc_start_wow_pp=kyc_start_wow_pp, kyc_done_wow_pp=kyc_done_wow_pp,
-    )
-    wins   = generate_wins_v2(
-        wow, device_table, sso_pct,
-        kyc_start_pct=kyc_start_pct, kyc_done_pct=kyc_done_pct,
-        kyc_start_wow_pp=kyc_start_wow_pp, kyc_done_wow_pp=kyc_done_wow_pp,
-    )
-
-    from datetime import date
-    from config import SSO_LAUNCH_DATE
-    days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
-    days_remaining = max(0, 30 - days_since_sso)
-
-    # KYC metrics — offset window cohort analysis
+    # KYC headline metrics (offset window)
     kyc_start_pct       = round(kyc_cohort_starts       / prior_signup              * 100, 1) if prior_signup              > 0 else 0.0
     kyc_done_pct        = round(kyc_cur_completions      / kyc_cohort_starts         * 100, 1) if kyc_cohort_starts         > 0 else 0.0
     prior_kyc_start_pct = round(kyc_prior_cohort_starts  / prev_prev_signup          * 100, 1) if prev_prev_signup          > 0 else 0.0
@@ -214,13 +216,39 @@ def run(dry_run: bool = False):
     kyc_start_wow_pp    = round(kyc_start_pct - prior_kyc_start_pct, 1)
     kyc_done_wow_pp     = round(kyc_done_pct  - prior_kyc_done_pct,  1)
 
+    # KYC intermediate step WoW (same-window, denominator = signups)
+    kyc_steps_wow = compute_kyc_steps_wow(
+        cur_counts=kyc_steps_cur,
+        prev_counts=kyc_steps_prev,
+        cur_signups=prior_signup,
+        prev_signups=prev_prev_signup,
+    )
+
     # Flag if current report period overlaps with the Mar 10 funnel change
-    days_since_kyc_v2   = (date.today() - KYC_FUNNEL_V2_DATE).days
-    kyc_v2_recent       = 0 <= days_since_kyc_v2 <= 14
+    days_since_kyc_v2 = (date.today() - KYC_FUNNEL_V2_DATE).days
+    kyc_v2_recent     = 0 <= days_since_kyc_v2 <= 14
+
+    days_since_sso = (date.today() - SSO_LAUNCH_DATE).days
+
+    health = get_overall_health_v2(wow, device_table)
+    alerts = generate_alerts_v2(
+        wow, device_table, sso_pct,
+        kyc_start_pct=kyc_start_pct, kyc_done_pct=kyc_done_pct,
+        kyc_start_wow_pp=kyc_start_wow_pp, kyc_done_wow_pp=kyc_done_wow_pp,
+        kyc_steps_wow=kyc_steps_wow,
+    )
+    wins   = generate_wins_v2(
+        wow, device_table, sso_pct,
+        kyc_start_pct=kyc_start_pct, kyc_done_pct=kyc_done_pct,
+        kyc_start_wow_pp=kyc_start_wow_pp, kyc_done_wow_pp=kyc_done_wow_pp,
+    )
 
     print(f"\n  📊 Signups:        {cur_signup:,}")
     print(f"  📧 Email method:   OTP {email_pct}% | SSO {sso_pct}%")
     print(f"  🏦 KYC:            Start {kyc_start_pct}% ({kyc_start_wow_pp:+.1f}pp WoW) | Done {kyc_done_pct}% ({kyc_done_wow_pp:+.1f}pp WoW)")
+    if kyc_steps_wow:
+        worst = kyc_steps_wow[0]
+        print(f"  🔍 KYC worst step: {worst['label']} ({worst['wow_pp']:+.1f}pp WoW, now {worst['cur_pct']}%)")
     print(f"  🩺 Health:         {health.upper()}")
 
     # ── Build executive briefing ──────────────────────────────────────────

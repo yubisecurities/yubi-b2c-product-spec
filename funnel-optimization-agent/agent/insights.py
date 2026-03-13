@@ -20,6 +20,8 @@ from config import (
     DEVICE_TIER_BASELINES,
     DEVICE_TIER_LABELS,
     SSO_LAUNCH_DATE,
+    KYC_STEP_LABELS,
+    KYC_STEP_ORDER,
 )
 
 
@@ -504,6 +506,41 @@ def compute_wow_totals(
     }
 
 
+def compute_kyc_steps_wow(
+    cur_counts:   Dict[str, int],   # {step_key: count} for current cohort window
+    prev_counts:  Dict[str, int],   # {step_key: count} for prior cohort window
+    cur_signups:  int,              # signups in current cohort window (denominator)
+    prev_signups: int,              # signups in prior cohort window (denominator)
+) -> List[Dict]:
+    """
+    For each KYC intermediate step, compute what % of signups reached it (same window),
+    the WoW pp change, and return sorted by worst drop first.
+
+    Skips steps where both current and prior counts are 0 (e.g. V2-only steps in early
+    prior windows before the Mar 10 funnel change).
+
+    Returns list of dicts: {key, label, cur_pct, prev_pct, wow_pp}
+    Sorted ascending by wow_pp (worst drop first).
+    """
+    result = []
+    for step_key in KYC_STEP_ORDER:
+        cur  = cur_counts.get(step_key, 0)
+        prev = prev_counts.get(step_key, 0)
+        if cur == 0 and prev == 0:
+            continue  # step not active in either window (e.g. V2 step before Mar 10)
+        cur_pct  = round(cur  / cur_signups  * 100, 1) if cur_signups  > 0 else 0.0
+        prev_pct = round(prev / prev_signups * 100, 1) if prev_signups > 0 else 0.0
+        wow_pp   = round(cur_pct - prev_pct, 1)
+        result.append({
+            "key":      step_key,
+            "label":    KYC_STEP_LABELS.get(step_key, step_key),
+            "cur_pct":  cur_pct,
+            "prev_pct": prev_pct,
+            "wow_pp":   wow_pp,
+        })
+    return sorted(result, key=lambda x: x["wow_pp"])  # worst drop first
+
+
 def generate_alerts_v2(
     wow:              Dict[str, Dict],
     device_table:     List[Dict],
@@ -512,19 +549,44 @@ def generate_alerts_v2(
     kyc_done_pct:     float = 0.0,
     kyc_start_wow_pp: float = 0.0,
     kyc_done_wow_pp:  float = 0.0,
+    kyc_steps_wow:    List[Dict] = None,
 ) -> List[str]:
     """Alerts for the v2 compact report, informed by business context (business_context.md)."""
     alerts: List[str] = []
 
     # ── KYC drop alerts ───────────────────────────────────────────────────
+    _kyc_steps = kyc_steps_wow or []
+
+    # Find the worst intermediate step (largest pp drop among tracked steps)
+    worst_step = _kyc_steps[0] if _kyc_steps else None
+
     if kyc_done_wow_pp <= -5.0 and kyc_done_pct > 0:
-        alerts.append(
-            f"🔴 *KYC Completion Rate down {abs(kyc_done_wow_pp):.1f}pp* WoW to *{kyc_done_pct}%* — "
-            f"investigate drop-offs in KYC flow"
+        msg = (
+            f"🔴 *KYC Completion down {abs(kyc_done_wow_pp):.1f}pp* WoW to *{kyc_done_pct}%*"
         )
+        if worst_step and worst_step["wow_pp"] <= -2.0:
+            msg += (
+                f" — bottleneck: *{worst_step['label']}* step "
+                f"({worst_step['wow_pp']:+.1f}pp, now {worst_step['cur_pct']}% of signups)"
+            )
+        else:
+            msg += " — investigate drop-offs in KYC flow"
+        alerts.append(msg)
     elif kyc_done_wow_pp <= -2.0 and kyc_done_pct > 0:
+        msg = (
+            f"⚠️ *KYC Completion down {abs(kyc_done_wow_pp):.1f}pp* WoW to *{kyc_done_pct}%*"
+        )
+        if worst_step and worst_step["wow_pp"] <= -2.0:
+            msg += (
+                f" — *{worst_step['label']}* step most affected "
+                f"({worst_step['wow_pp']:+.1f}pp WoW)"
+            )
+        alerts.append(msg)
+    elif worst_step and worst_step["wow_pp"] <= -5.0:
+        # Intermediate step dropping even if overall completion is flat — early warning
         alerts.append(
-            f"⚠️ *KYC Completion Rate down {abs(kyc_done_wow_pp):.1f}pp* WoW to *{kyc_done_pct}%*"
+            f"⚠️ *KYC {worst_step['label']}* step down *{abs(worst_step['wow_pp']):.1f}pp* WoW "
+            f"to *{worst_step['cur_pct']}%* of signups — may drag completion next week"
         )
 
     if kyc_start_wow_pp <= -5.0 and kyc_start_pct > 0:
