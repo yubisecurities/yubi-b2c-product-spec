@@ -55,17 +55,21 @@ def main():
     wow = data["wow"]
     dr  = data["date_range"]
 
-    print(f"Period:       {dr['current_start']} → {dr['current_end']}")
-    print(f"Impressions:  {cw['impressions']:,}  ({_fmt_pct(wow['impressions_pct'])} WoW)")
-    print(f"Clicks:       {cw['clicks']:,}  ({_fmt_pct(wow['clicks_pct'])} WoW)")
-    print(f"CTR:          {cw['ctr']}%  ({_fmt_pct(wow['ctr_pct'])} WoW)")
-    print(f"Spend:        ₹{cw['cost']:,}  ({_fmt_pct(wow['cost_pct'])} WoW)")
-    print(f"Conversions:  {cw['conversions']:,.0f}  ({_fmt_pct(wow['conversions_pct'])} WoW)")
-    print(f"ROAS:         {cw['roas']}x  ({_fmt_pct(wow['roas_pct'])} WoW)")
+    print(f"Period:                {dr['current_start']} → {dr['current_end']}")
+    print(f"Impressions:           {cw['impressions']:,}  ({_fmt_pct(wow['impressions_pct'])} WoW)")
+    print(f"Clicks:                {cw['clicks']:,}  ({_fmt_pct(wow['clicks_pct'])} WoW)")
+    print(f"CTR:                   {cw['ctr']}%  ({_fmt_pct(wow['ctr_pct'])} WoW)")
+    print(f"Spend:                 ₹{cw['cost']:,}  ({_fmt_pct(wow['cost_pct'])} WoW)")
+    print(f"In-App Actions:        {cw['in_app_actions']:,.0f}  ({_fmt_pct(wow['in_app_actions_pct'])} WoW)")
+    print(f"Cost / In-App Action:  ₹{cw['cost_per_in_app_action']:,}  ({_fmt_pct(wow['cost_per_in_app_action_pct'])} WoW)")
+    print(f"ROAS:                  {cw['roas']}x  ({_fmt_pct(wow['roas_pct'])} WoW)")
 
     print("\n── Top Campaigns by Spend ────────────────────────────────────")
+    print(f"  {'Campaign':<40}  {'Spend':>12}  {'CTR':>6}  {'In-App Actions':>14}  {'Cost/Action':>11}")
+    print(f"  {'-'*40}  {'-'*12}  {'-'*6}  {'-'*14}  {'-'*11}")
     for c in data["top_campaigns"]:
-        print(f"  {c['campaign_name'][:40]:<40}  ₹{c['cost']:>10,}  {c['ctr_pct']}% CTR  {c['conversions']:.0f} conv")
+        cpa = f"₹{c['cost_per_in_app_action']:,.0f}" if c['in_app_actions'] > 0 else "—"
+        print(f"  {c['campaign_name'][:40]:<40}  ₹{c['cost']:>10,}  {c['ctr_pct']:>5}%  {c['in_app_actions']:>14,.0f}  {cpa:>11}")
 
     print("\n── Device Split ──────────────────────────────────────────────")
     for device, m in data["device_split"].items():

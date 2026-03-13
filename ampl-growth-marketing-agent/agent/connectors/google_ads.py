@@ -62,6 +62,7 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
             metrics.cost_micros,
             metrics.conversions,
             metrics.conversions_value,
+            metrics.cost_per_conversion,
             metrics.ctr,
             metrics.average_cpc
         FROM campaign
@@ -77,16 +78,17 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
             c = row.campaign
             m = row.metrics
             rows.append({
-                "campaign_id":      str(c.id),
-                "campaign_name":    c.name,
-                "status":           c.status.name,
-                "impressions":      m.impressions,
-                "clicks":           m.clicks,
-                "cost_micros":      m.cost_micros,
-                "conversions":      m.conversions,
-                "conversion_value": m.conversions_value,
-                "ctr":              m.ctr,
-                "avg_cpc_micros":   m.average_cpc,
+                "campaign_id":           str(c.id),
+                "campaign_name":         c.name,
+                "status":                c.status.name,
+                "impressions":           m.impressions,
+                "clicks":                m.clicks,
+                "cost_micros":           m.cost_micros,
+                "conversions":           m.conversions,
+                "conversion_value":      m.conversions_value,
+                "cost_per_conversion_micros": m.cost_per_conversion,
+                "ctr":                   m.ctr,
+                "avg_cpc_micros":        m.average_cpc,
             })
     except GoogleAdsException as ex:
         _handle_error(ex)

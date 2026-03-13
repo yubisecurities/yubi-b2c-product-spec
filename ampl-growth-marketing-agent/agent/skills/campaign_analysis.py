@@ -32,19 +32,20 @@ def _aggregate_campaigns(rows: list[dict]) -> dict:
         "impressions":      0,
         "clicks":           0,
         "cost":             0.0,
-        "conversions":      0.0,
+        "in_app_actions":   0.0,
         "conversion_value": 0.0,
     }
     for r in rows:
         totals["impressions"]      += r["impressions"]
         totals["clicks"]           += r["clicks"]
         totals["cost"]             += _micros_to_inr(r["cost_micros"])
-        totals["conversions"]      += r["conversions"]
+        totals["in_app_actions"]   += r["conversions"]
         totals["conversion_value"] += r["conversion_value"]
 
-    totals["ctr"]  = round(totals["clicks"] / totals["impressions"] * 100, 2) if totals["impressions"] else 0
-    totals["cpc"]  = round(totals["cost"] / totals["clicks"], 2) if totals["clicks"] else 0
-    totals["roas"] = round(totals["conversion_value"] / totals["cost"], 2) if totals["cost"] else 0
+    totals["ctr"]                    = round(totals["clicks"] / totals["impressions"] * 100, 2) if totals["impressions"] else 0
+    totals["cpc"]                    = round(totals["cost"] / totals["clicks"], 2) if totals["clicks"] else 0
+    totals["roas"]                   = round(totals["conversion_value"] / totals["cost"], 2) if totals["cost"] else 0
+    totals["cost_per_in_app_action"] = round(totals["cost"] / totals["in_app_actions"], 2) if totals["in_app_actions"] else 0
 
     return totals
 
@@ -90,20 +91,23 @@ def run() -> dict:
     prior_totals   = _aggregate_campaigns(prior_campaigns)
 
     wow = {
-        "impressions_pct": _pct_change(current_totals["impressions"], prior_totals["impressions"]),
-        "clicks_pct":      _pct_change(current_totals["clicks"],      prior_totals["clicks"]),
-        "cost_pct":        _pct_change(current_totals["cost"],        prior_totals["cost"]),
-        "conversions_pct": _pct_change(current_totals["conversions"], prior_totals["conversions"]),
-        "roas_pct":        _pct_change(current_totals["roas"],        prior_totals["roas"]),
-        "ctr_pct":         _pct_change(current_totals["ctr"],         prior_totals["ctr"]),
+        "impressions_pct":           _pct_change(current_totals["impressions"],           prior_totals["impressions"]),
+        "clicks_pct":                _pct_change(current_totals["clicks"],                prior_totals["clicks"]),
+        "cost_pct":                  _pct_change(current_totals["cost"],                  prior_totals["cost"]),
+        "in_app_actions_pct":        _pct_change(current_totals["in_app_actions"],        prior_totals["in_app_actions"]),
+        "cost_per_in_app_action_pct":_pct_change(current_totals["cost_per_in_app_action"],prior_totals["cost_per_in_app_action"]),
+        "roas_pct":                  _pct_change(current_totals["roas"],                  prior_totals["roas"]),
+        "ctr_pct":                   _pct_change(current_totals["ctr"],                   prior_totals["ctr"]),
     }
 
     # ── Top campaigns by spend ────────────────────────────────────────────────
     top_campaigns = sorted(current_campaigns, key=lambda r: r["cost_micros"], reverse=True)[:5]
     for c in top_campaigns:
-        c["cost"]    = _micros_to_inr(c.pop("cost_micros"))
-        c["avg_cpc"] = _micros_to_inr(c.pop("avg_cpc_micros"))
-        c["ctr_pct"] = round(c["ctr"] * 100, 2)
+        c["cost"]                  = _micros_to_inr(c.pop("cost_micros"))
+        c["avg_cpc"]               = _micros_to_inr(c.pop("avg_cpc_micros"))
+        c["cost_per_in_app_action"]= _micros_to_inr(c.pop("cost_per_conversion_micros"))
+        c["in_app_actions"]        = c.pop("conversions")
+        c["ctr_pct"]               = round(c["ctr"] * 100, 2)
 
     # ── Device split ──────────────────────────────────────────────────────────
     device_split: dict[str, dict] = {}
