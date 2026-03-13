@@ -475,7 +475,6 @@ def build_exec_report(
     kyc_done_wow_pp:    float,
     kyc_cohort_signups: int,
     kyc_v2_recent:      bool,
-    kyc_tier_data:      List[Dict],
     alerts:             List[str],
     wins:               List[str],
     health:             str,
@@ -611,39 +610,30 @@ def build_exec_report(
         lines.append("")
         lines.append("_No urgent actions — funnel running normally._")
 
-    # ── Full funnel summary table ─────────────────────────────────────────
-    if kyc_tier_data:
+    # ── Signup funnel by segment table ───────────────────────────────────
+    if device_table:
         C_TIER, C_COL = 16, 7
         header = (
             f"{'Segment':<{C_TIER}}"
             f"  {'Mob→Em':>{C_COL}}"
             f"  {'Em→PIN':>{C_COL}}"
-            f"  {'→KYCSt':>{C_COL}}"
-            f"  {'→KYCDo':>{C_COL}}"
         )
-        sep  = "─" * (C_TIER + (C_COL + 2) * 4)
+        sep  = "─" * (C_TIER + (C_COL + 2) * 2)
         rows = [header, sep]
-        for r in kyc_tier_data:
-            em  = f"{r['em_pct']}%"
-            pin = f"{r['pin_pct']}%"
-            ks  = f"{r['kyc_start']}%" if r["kyc_start"] > 0 else "—"
-            kd  = f"{r['kyc_done']}%"  if r["kyc_done"]  > 0 else "—"
+        for r in device_table:
+            em  = f"{r['newuser_to_email_pct']}%"
+            pin = f"{r['email_to_signup_pct']}%"
             rows.append(
                 f"{r['label']:<{C_TIER}}"
                 f"  {em:>{C_COL}}"
                 f"  {pin:>{C_COL}}"
-                f"  {ks:>{C_COL}}"
-                f"  {kd:>{C_COL}}"
             )
         lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         lines.append("")
-        lines.append("*Funnel by Segment (rolling 7d)*")
+        lines.append("*Signup Funnel by Segment (rolling 7d)*")
         lines.append("```\n" + "\n".join(rows) + "\n```")
-        lines.append(
-            "_Mob→Em: email conv rate · Em→PIN: signup rate · "
-            "→KYCSt/→KYCDo: rolling window, use for relative tier comparison only_"
-        )
+        lines.append("_Mob→Em: mobile verified → email verified · Em→PIN: email verified → signup_")
 
     lines.append("")
     lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
