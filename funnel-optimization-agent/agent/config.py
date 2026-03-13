@@ -58,6 +58,19 @@ MILESTONE_EVENTS = {
     "signup":     "SETUP_SECURE_PIN_SUCCESS",
 }
 
+# ── KYC funnel milestone events ──────────────────────────────────────────────
+# KYC happens after SETUP_SECURE_PIN_SUCCESS. We track start + complete only.
+# Offset window: signups 8-14d ago → KYC completions 1-7d ago (7-day cohort).
+KYC_EVENTS = {
+    "kyc_start":    "KYC_RISKDETAILS_SUBMIT",
+    "kyc_complete": "KYC_READY_FOR_TRADE",
+}
+
+# KYC funnel restructured Mar 10 2026: KYC_WET_SIGNATURE_VERIFIED added between
+# Liveness and eSign. KYC_DEMAT_VERIFIED moved from step 5 to step 8 (after eSign).
+# Total steps: 8 → 9. Completion rate may show a temporary dip after this date.
+KYC_FUNNEL_V2_DATE = date(2026, 3, 10)
+
 # ── Failure events — tracked via segmentation API ─────────────────────────────
 FAILURE_EVENTS = [
     "VERIFY_OTP_FAILED",
