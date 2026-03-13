@@ -10,12 +10,11 @@ Report flow:
   2. Python computes derived metrics (WoW deltas, device tier classification,
      Em%, PIN%, SSO adoption %, etc.)
   3. Python pre-formats the device tier table (monospace code block)
-  4. Claude generates the full narrative report using the writing guide
-     embedded in reporter.py as the system prompt
-  5. Report is posted to Slack as plain mrkdwn text
-
-Fallback: if Claude is unavailable (no API key, network error), the agent
-falls back to the legacy Block Kit format via build_message_v2().
+  4. Executive briefing posted first (pure Python, always available):
+     ~18 lines, verdict-first, for CEO/CPO/CMO
+  5. Detailed report posted second:
+     a. Claude via AWS Bedrock generates narrative report (if AWS creds set)
+     b. Fallback: Block Kit format via build_message_v2() if no AWS creds
 
 Funnel milestones:
   OTP          = VERIFY_OTP_SUCCESS           (new + returning users)
@@ -37,7 +36,7 @@ Required env vars:
   AMPLITUDE_API_KEY      Amplitude API key (Project 506002)
   AMPLITUDE_SECRET_KEY   Amplitude secret key
   SLACK_WEBHOOK_URL      Slack incoming webhook URL
-  ANTHROPIC_API_KEY      Anthropic API key (for LLM report generation)
+  AWS_ACCESS_KEY_ID      AWS key for Bedrock/Claude (optional — falls back to Block Kit)
 """
 
 import json
@@ -55,7 +54,7 @@ from insights import (
     generate_wins_v2,
     get_overall_health_v2,
 )
-from slack import build_message_v2, send_to_slack
+from slack import build_exec_report, build_message_v2, send_to_slack
 
 
 # ---------------------------------------------------------------------------
@@ -245,8 +244,25 @@ def run(dry_run: bool = False):
         "generated_at":            now_ist.strftime("%Y-%m-%d %H:%M"),
     }
 
-    # ── Generate report via LLM (fallback to Block Kit) ───────────────────
+    # ── Build executive briefing (pure Python — always available) ────────
+    exec_payload = build_exec_report(
+        period_label=label,
+        cur_signup=cur_signup,
+        wow=wow,
+        prev_prev_signup=prev_prev_signup,
+        yesterday_snapshot=yesterday_snapshot,
+        device_table=device_table,
+        sso_pct=sso_pct,
+        alerts=alerts,
+        wins=wins,
+        health=health,
+        generated_at=now_ist.strftime("%Y-%m-%d %H:%M"),
+    )
+
+    # ── Build detailed report (LLM if available, Block Kit fallback) ──────
     if dry_run:
+        print("\n── DRY RUN — executive briefing ─────────────────────────────────────")
+        print(exec_payload["text"])
         print("\n── DRY RUN — data dict ──────────────────────────────────────────────")
         print(json.dumps(data, indent=2, ensure_ascii=False))
         print("────────────────────────────────────────────────────────────────────")
@@ -263,10 +279,9 @@ def run(dry_run: bool = False):
             print(f"⚠️  LLM report failed ({e}), falling back to Block Kit format...")
 
     if report_text:
-        payload = {"text": report_text}
+        detailed_payload = {"text": report_text}
     else:
-        # Fallback: legacy Block Kit format
-        payload = build_message_v2(
+        detailed_payload = build_message_v2(
             period_label=label,
             device_table=device_table,
             cur_otp=cur_otp,
@@ -281,11 +296,16 @@ def run(dry_run: bool = False):
             health=health,
         )
 
-    print("\n📤  Sending to Slack...")
-    if send_to_slack(webhook_url, payload):
-        print("✅  Report sent!")
+    # ── Post: executive first, detailed second ────────────────────────────
+    print("\n📤  Sending executive briefing to Slack...")
+    if not send_to_slack(webhook_url, exec_payload):
+        print("⚠️  Executive briefing failed to send — continuing with detailed report...")
+
+    print("📤  Sending detailed report to Slack...")
+    if send_to_slack(webhook_url, detailed_payload):
+        print("✅  Reports sent!")
     else:
-        print("❌  Failed to send to Slack")
+        print("❌  Failed to send detailed report to Slack")
         sys.exit(1)
 
 
