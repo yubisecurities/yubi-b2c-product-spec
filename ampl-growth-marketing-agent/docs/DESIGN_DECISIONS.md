@@ -6,6 +6,45 @@ Updated incrementally — newest entries at the top.
 
 ---
 
+## Skill 2 — Report Generator (Code Design)
+
+### Decision: Rule-based Markdown report auto-generated from campaign data
+**Date:** Mar 14 2026
+**Status:** ✅ Implemented
+
+**What was built:** `skills/report.py` — `generate(data: dict) -> str` takes the dict from
+`campaign_analysis.run()` and produces a full Markdown report string. `agent.py` calls it
+after campaign analysis and saves to `exports/campaign_report_{date}.md`.
+
+**Report sections:**
+1. **Overall Account Summary** — WoW table; auto-derives true CPA from SETUP_SECURE_PIN_SUCCESS and install CPA from first_open by scanning `in_app_actions_breakdown` event names
+2. **Per-campaign breakdown** — primary event composition table + auto-diagnosis block
+3. **Full conversion funnel** — all tracked events with CPAs, duplicate tagging, notes
+4. **Measurement Issues** — auto-detected from data (see detection rules below)
+5. **Prioritised Recommendations** — P0/P1/P2 derived from data
+6. **Channel & Device split** — compact tables
+
+**Auto-diagnosis rules (per campaign):**
+- `first_open` share > 80% of primary conversions → "Effectively an install campaign"
+- `first_open` share 50–80% → "Install-heavy bidding"
+- `in_app_purchase` primary events < 50/month estimated → "Too sparse for Smart Bidding"
+- `budget_util_pct` >= 95% → "Budget capped"
+- `budget_util_pct` < 50% → "Under-delivering / bid strategy pullback"
+- `spend_wow_pct` <= -30% → "Spend collapse — bid strategy confidence"
+
+**Duplicate Firebase detection logic:**
+For each `yubi-invest` prefixed action in `in_app_actions_breakdown`, extract the event
+name suffix and check if a matching `Aspero Fixed Income` event exists. If counts are within
+10% of each other → flag as "DUPLICATE — same users as Aspero property" in funnel table and
+raise a P0 Measurement Issue.
+
+**Decision: Rule-based first, LLM narrative layer later**
+Built deterministic rule-based report first to establish a stable, testable baseline.
+LLM (AWS Bedrock / Claude) will be added as a separate `skills/insights.py` on top for
+narrative synthesis — same architecture as the funnel-optimization-agent's `reporter.py`.
+
+---
+
 ## Google Ads Conversion Tracking — Audit Findings (Mar 14 2026)
 
 ### Discovery: Both MULTI_CHANNEL campaigns are effectively install campaigns
@@ -174,12 +213,13 @@ using total spend / per-action count (not per-campaign-per-action split).
 
 ## Open Questions / Next Steps
 
-| # | Item | Priority |
-|---|---|---|
-| 1 | Link `KYC_BANK_VERIFIED_PD` + `_REVERSE_PD` to BankVerified Google Ads campaign | P0 |
-| 2 | Fix duplicate Firebase property tracking (yubi-invest vs Aspero property) | P0 |
-| 3 | Add `KYC_READY_FOR_TRADE` as conversion action for Smart Bidding signal | P1 |
-| 4 | Switch primary conversion from `VERIFY_OTP_SUCCESS` → `SETUP_SECURE_PIN_SUCCESS` | P1 |
-| 5 | Investigate PaymentSuccess -52.9% spend WoW drop | P1 |
-| 6 | Build Skill 2: LLM insights layer (AWS Bedrock / Claude) | P2 |
-| 7 | Build business_context.md for growth marketing agent system prompt | P2 |
+| # | Item | Priority | Status |
+|---|---|---|---|
+| 1 | Link `KYC_BANK_VERIFIED_PD` + `_REVERSE_PD` to BankVerified Google Ads campaign | P0 | ⏳ Pending (Google Ads side) |
+| 2 | Fix duplicate Firebase property tracking (yubi-invest vs Aspero property) | P0 | ⏳ Pending (Google Ads side) |
+| 3 | Add `KYC_READY_FOR_TRADE` as conversion action for Smart Bidding signal | P1 | ⏳ Pending (Google Ads side) |
+| 4 | Switch primary conversion from `VERIFY_OTP_SUCCESS` → `SETUP_SECURE_PIN_SUCCESS` | P1 | ⏳ Pending (Google Ads side) |
+| 5 | Investigate PaymentSuccess -52.9% spend WoW drop | P1 | ⏳ Monitor after #3 fix |
+| 6 | Build Skill 2: rule-based report generator (`skills/report.py`) | P2 | ✅ Done (Mar 14 2026) |
+| 7 | Build Skill 2b: LLM narrative layer on top of report (AWS Bedrock / Claude) | P2 | ⏳ Pending |
+| 8 | Build `business_context.md` for growth marketing agent LLM system prompt | P2 | ⏳ Pending |
