@@ -2,7 +2,7 @@
 
 **Project:** Aspero B2C Mobile - Bond Investment Platform
 **Amplitude Project ID:** 506002
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-03-14
 **Status:** ✅ Complete Signup Funnel + KYC Funnel Documented
 
 ---
@@ -42,10 +42,10 @@ KYC FUNNEL - DOCUMENTED (V2 as of Mar 10 2026)
 ├── KYC_WET_SIGNATURE_VERIFIED      ← Wet signature (added in V2, between Liveness and eSign)
 ├── ... [eSign step]
 ├── KYC_ADDRESS_VERIFIED            ← Address verification complete
-├── Bank Verification (3-event sequence):
-│   ├── KYC_BANK_PAGE_VIEW          ← User lands on bank details screen
-│   ├── BANK_ACCOUNT_SAVE_AND_SUBMIT ← User submits bank details (penny drop initiated)
-│   └── KYC_BANK_VERIFIED           ← Penny drop successful, bank account verified
+├── Bank Verification (ANY ONE of 3 = verified):
+│   ├── KYC_BANK_VERIFIED           ← Legacy (pre-Jan 20 2026); still included for stragglers
+│   ├── KYC_BANK_VERIFIED_PD        ← New: Penny Drop method (primary since Jan 20 2026)
+│   └── KYC_BANK_VERIFIED_REVERSE_PD ← New: Reverse Penny Drop method (primary since Jan 20 2026)
 ├── KYC_DEMAT_VERIFIED              ← Demat account verified (moved to step 8 in V2)
 └── KYC_READY_FOR_TRADE             ← KYC COMPLETE (account activated, ready to trade)
 
@@ -69,20 +69,25 @@ KYC FUNNEL - DOCUMENTED (V2 as of Mar 10 2026)
 | **KYC_RISKDETAILS_SUBMIT** | ✅ KYC Start | First KYC step — risk details form submitted. ~71% of signups start KYC. |
 | **KYC_READY_FOR_TRADE** | ✅ KYC Complete | Final step — account activated, user can invest. ~58% of KYC starters complete. |
 
-### **Bank Verification Sub-Funnel (3-Event Sequence)**
+### **Bank Verification — ANY ONE of 3 Events = Verified**
 
-> ⚠️ Bank verification = combination of 3 events. All 3 must be tracked to understand drop-off.
+> Bank verification was redesigned on **Jan 20 2026**. The 3 events are **not sequential** —
+> they represent 3 different verification methods. A user completes bank verification when
+> **any one** of these fires. All 3 are included in the Amplitude funnel definition to
+> avoid missing any completions (including stragglers on the old method).
 
-| # | Event | Type | Description |
+| Event | Active Period | Method | Notes |
 |---|---|---|---|
-| 1 | **KYC_BANK_PAGE_VIEW** | Page View | User lands on bank account details screen |
-| 2 | **BANK_ACCOUNT_SAVE_AND_SUBMIT** | User Action | User submits bank details; penny drop API initiated |
-| 3 | **KYC_BANK_VERIFIED** | ✅ Success | Penny drop successful — bank account verified |
+| **KYC_BANK_VERIFIED** | Pre-Jan 20 2026 (legacy) | Old verification method | No longer the primary path; still tracked to catch stragglers |
+| **KYC_BANK_VERIFIED_PD** | Post-Jan 20 2026 (current) | Penny Drop | ₹1 sent to user's bank account; user confirms receipt |
+| **KYC_BANK_VERIFIED_REVERSE_PD** | Post-Jan 20 2026 (current) | Reverse Penny Drop | User sends ₹1 to verify ownership |
 
-**Critical note for Google Ads:** If `KYC_BANK_VERIFIED` shows very few events while
-`BANK_ACCOUNT_SAVE_AND_SUBMIT` shows many, this signals an **instrumentation gap** (event not
-firing in app after penny drop success), NOT necessarily a drop-off in user behavior.
-Always check all 3 events together before drawing conclusions.
+**Critical note for Google Ads:**
+`KYC_BANK_VERIFIED` showing very few events (e.g. 3 events in 30 days) is **expected** —
+it's the legacy method that barely fires since Jan 20. The real bank verification volume
+is in `KYC_BANK_VERIFIED_PD` + `KYC_BANK_VERIFIED_REVERSE_PD`, which are the active
+methods. If a "BankVerified" Google Ads campaign only tracks `KYC_BANK_VERIFIED`, it is
+**blind to almost all real bank verifications**. All 3 events must be linked.
 
 ### **Other KYC Step Events**
 
@@ -348,7 +353,8 @@ END: User account active
 | 2026-03-09 | API troubleshooting completed | ✅ |
 | 2026-03-09 | Complete event documentation | ✅ |
 | PENDING | Add funnel numbers/metrics | 🔄 |
-| 2026-03-14 | Added KYC funnel — start/complete + bank 3-event sub-funnel + SSO events | ✅ |
+| 2026-03-14 | Added KYC funnel — start/complete events, SSO path events | ✅ |
+| 2026-03-14 | Bank verification: corrected to 3 alternative methods (ANY ONE = verified); legacy pre-Jan 20 vs new PD/Reverse PD methods | ✅ |
 | PENDING | Add Investment Funnel | 🔄 |
 
 ---
@@ -365,7 +371,7 @@ END: User account active
 **KYC Funnel Documented (V2):**
 - ✅ KYC start event: KYC_RISKDETAILS_SUBMIT
 - ✅ KYC complete event: KYC_READY_FOR_TRADE
-- ✅ Bank verification 3-event sub-funnel: KYC_BANK_PAGE_VIEW → BANK_ACCOUNT_SAVE_AND_SUBMIT → KYC_BANK_VERIFIED
+- ✅ Bank verification: 3 alternative methods (ANY ONE = verified) — KYC_BANK_VERIFIED (legacy, pre-Jan 20) + KYC_BANK_VERIFIED_PD + KYC_BANK_VERIFIED_REVERSE_PD (both active since Jan 20 2026)
 - ✅ Address + wet signature + demat events noted
 - 🔄 9 intermediate KYC steps not yet fully enumerated
 
