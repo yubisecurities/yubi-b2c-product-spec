@@ -155,17 +155,6 @@ def run() -> dict:
         reverse=True,
     )[:20]
 
-    # ── Per-campaign all_conversions lookup (current + prior, from breakdown rows) ──
-    campaign_all_conversions: dict[str, float] = {}
-    for row in conv_breakdown_rows:
-        name = row["campaign_name"]
-        campaign_all_conversions[name] = campaign_all_conversions.get(name, 0) + row["all_conversions"]
-
-    prior_campaign_all_conversions: dict[str, float] = {}
-    for row in prior_conv_breakdown_rows:
-        name = row["campaign_name"]
-        prior_campaign_all_conversions[name] = prior_campaign_all_conversions.get(name, 0) + row["all_conversions"]
-
     # Prior week spend lookup by campaign_id for WoW
     prior_spend_by_id: dict[str, float] = {
         r["campaign_id"]: _micros_to_inr(r["cost_micros"])
@@ -184,20 +173,25 @@ def run() -> dict:
         channel_split[ch]["conversions"] += r["conversions"]
 
     # ── Top campaigns by spend ────────────────────────────────────────────────
+    # Prior-week primary conversions lookup (for WoW)
+    prior_primary_by_id: dict[str, float] = {
+        r["campaign_id"]: r["conversions"]
+        for r in prior_campaigns
+    }
+
     top_campaigns = sorted(current_campaigns, key=lambda r: r["cost_micros"], reverse=True)[:5]
     for c in top_campaigns:
-        c["cost"]    = _micros_to_inr(c.pop("cost_micros"))
-        c["avg_cpc"] = _micros_to_inr(c.pop("avg_cpc_micros"))
-        c.pop("cost_per_conversion_micros")   # was primary-only; replaced below
-        c.pop("conversions")                  # was primary-only; replaced below
-        all_conv                    = campaign_all_conversions.get(c["campaign_name"], 0)
-        prior_all_conv              = prior_campaign_all_conversions.get(c["campaign_name"], 0)
+        c["cost"]       = _micros_to_inr(c.pop("cost_micros"))
+        c["avg_cpc"]    = _micros_to_inr(c.pop("avg_cpc_micros"))
+        c.pop("cost_per_conversion_micros")
+        primary_conv                = c.pop("conversions")   # what the campaign bids on
+        prior_primary               = prior_primary_by_id.get(c["campaign_id"], 0)
         prior_spend                 = prior_spend_by_id.get(c["campaign_id"], 0)
-        c["in_app_actions"]         = round(all_conv, 0)
-        c["cost_per_in_app_action"] = round(c["cost"] / all_conv, 2) if all_conv > 0 else 0
+        c["in_app_actions"]         = round(primary_conv, 0)
+        c["cost_per_in_app_action"] = round(c["cost"] / primary_conv, 2) if primary_conv > 0 else 0
         c["ctr_pct"]                = round(c["ctr"] * 100, 2)
         c["spend_wow_pct"]          = _pct_change(c["cost"], prior_spend)
-        c["in_app_actions_wow_pct"] = _pct_change(all_conv, prior_all_conv)
+        c["in_app_actions_wow_pct"] = _pct_change(primary_conv, prior_primary)
         daily_budget                = _micros_to_inr(c.pop("daily_budget_micros", 0))
         budget_cap                  = daily_budget * window_days
         c["budget_util_pct"]        = round(c["cost"] / budget_cap * 100, 1) if budget_cap > 0 else None
