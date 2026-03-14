@@ -170,6 +170,17 @@ def run() -> dict:
         for r in prior_campaigns
     }
 
+    # ── Channel type split (must run before top_campaigns pops cost_micros) ────
+    channel_split: dict[str, dict] = {}
+    for r in current_campaigns:
+        ch = r.get("channel_type", "UNKNOWN")
+        if ch not in channel_split:
+            channel_split[ch] = {"impressions": 0, "clicks": 0, "cost": 0.0, "conversions": 0.0}
+        channel_split[ch]["impressions"] += r["impressions"]
+        channel_split[ch]["clicks"]      += r["clicks"]
+        channel_split[ch]["cost"]        += _micros_to_inr(r["cost_micros"])
+        channel_split[ch]["conversions"] += r["conversions"]
+
     # ── Top campaigns by spend ────────────────────────────────────────────────
     top_campaigns = sorted(current_campaigns, key=lambda r: r["cost_micros"], reverse=True)[:5]
     for c in top_campaigns:
@@ -218,6 +229,7 @@ def run() -> dict:
         "top_campaigns":          top_campaigns,
         "in_app_actions_breakdown": in_app_actions_breakdown,
         "total_all_conversions":  total_all_conversions,
+        "channel_split":          channel_split,
         "device_split":           device_split,
         "geo_split":              geo_rows[:10],
         "top_ads":                top_ads_clean,

@@ -39,6 +39,7 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
             "campaign_id":     str,
             "campaign_name":   str,
             "status":          str,
+            "channel_type":    str,   # SEARCH, DISPLAY, VIDEO, MULTI_CHANNEL (APP)
             "impressions":     int,
             "clicks":          int,
             "cost_micros":     int,   # divide by 1_000_000 to get actual spend
@@ -57,6 +58,7 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
             campaign.id,
             campaign.name,
             campaign.status,
+            campaign.advertising_channel_type,
             metrics.impressions,
             metrics.clicks,
             metrics.cost_micros,
@@ -78,17 +80,18 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
             c = row.campaign
             m = row.metrics
             rows.append({
-                "campaign_id":           str(c.id),
-                "campaign_name":         c.name,
-                "status":                c.status.name,
-                "impressions":           m.impressions,
-                "clicks":                m.clicks,
-                "cost_micros":           m.cost_micros,
-                "conversions":           m.conversions,
-                "conversion_value":      m.conversions_value,
+                "campaign_id":                str(c.id),
+                "campaign_name":              c.name,
+                "status":                     c.status.name,
+                "channel_type":               c.advertising_channel_type.name,
+                "impressions":                m.impressions,
+                "clicks":                     m.clicks,
+                "cost_micros":                m.cost_micros,
+                "conversions":                m.conversions,
+                "conversion_value":           m.conversions_value,
                 "cost_per_conversion_micros": m.cost_per_conversion,
-                "ctr":                   m.ctr,
-                "avg_cpc_micros":        m.average_cpc,
+                "ctr":                        m.ctr,
+                "avg_cpc_micros":             m.average_cpc,
             })
     except GoogleAdsException as ex:
         _handle_error(ex)

@@ -81,6 +81,11 @@ def main():
         cpa_str = f"₹{a['cost_per_action']:,.0f}"
         print(f"  {a['action'][:55]:<55}  {a['count']:>7,.0f}  {cpa_str:>11}")
 
+    print("\n── Channel Type Split ────────────────────────────────────────")
+    for ch, m in data["channel_split"].items():
+        ctr = round(m["clicks"] / m["impressions"] * 100, 2) if m["impressions"] else 0
+        print(f"  {ch:<20}  ₹{m['cost']:>10,.0f}  {m['impressions']:>10,} impr  {ctr:>5}% CTR")
+
     print("\n── Device Split ──────────────────────────────────────────────")
     for device, m in data["device_split"].items():
         print(f"  {device:<10}  {m['impressions']:>10,} impr  {m['clicks']:>6,} clicks  ₹{m['cost']:>8,.0f}")
