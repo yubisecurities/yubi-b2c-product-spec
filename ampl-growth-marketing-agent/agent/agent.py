@@ -35,7 +35,7 @@ if missing:
     print("Need a refresh token? Run: python scripts/generate_refresh_token.py")
     sys.exit(1)
 
-from skills import campaign_analysis, report
+from skills import campaign_analysis, creative_analysis, report
 
 
 def main():
@@ -44,7 +44,7 @@ def main():
     print("=" * 60)
 
     # ── Skill 1: Campaign Analysis ────────────────────────────────────────────
-    print("\n[1/1] Running campaign analysis...")
+    print("\n[1/2] Running campaign analysis...")
     data = campaign_analysis.run()
 
     # Pretty-print results to console for now
@@ -101,6 +101,29 @@ def main():
         if ad["headlines"]:
             print(f"    Headlines: {' | '.join(ad['headlines'][:3])}")
 
+    # ── Skill 2: Creative Analysis ────────────────────────────────────────────
+    print("\n[2/2] Running creative analysis (APP_AD copy)...")
+    dr = data["date_range"]
+    creative_data = creative_analysis.run(dr["current_start"], dr["current_end"])
+
+    if creative_data["ads"]:
+        print(f"\n── Creative Analysis ({len(creative_data['ads'])} app ads) ─────────────────")
+        for ad in creative_data["ads"]:
+            h_preview = " | ".join(ad["headlines"][:2]) or "(no headlines)"
+            print(f"  [{ad['campaign_name'][:30]}]  {ad['impressions']:,} impr  {ad['ctr_pct']}% CTR")
+            print(f"    Copy: {h_preview[:80]}")
+            if creative_data["llm_enabled"] and ad.get("analysis"):
+                a = ad["analysis"]
+                print(f"    Prop: {a.get('primary_value_prop','?')}  |  Hook: {a.get('emotional_hook','?')}  |  Clarity: {a.get('clarity_score','?')}/5")
+                if a.get("what_missing"):
+                    print(f"    Missing: {', '.join(a['what_missing'])}")
+
+        if creative_data.get("synthesis"):
+            print("\n── Creative Strategy Synthesis ──────────────────────────────")
+            print(creative_data["synthesis"])
+    else:
+        print("[2/2] No APP_AD creatives found for the period.")
+
     # Save raw data to exports/
     os.makedirs("../exports", exist_ok=True)
     from datetime import date
@@ -110,8 +133,8 @@ def main():
         json.dump(data, f, indent=2, default=str)
     print(f"\n[agent] Raw data saved to {out_path}")
 
-    # Generate and save the full formatted report
-    report_md = report.generate(data)
+    # Generate and save the full formatted report (campaign + creative analysis)
+    report_md = report.generate(data, creative_data)
     report_path = f"../exports/campaign_report_{today}.md"
     with open(report_path, "w") as f:
         f.write(report_md)
