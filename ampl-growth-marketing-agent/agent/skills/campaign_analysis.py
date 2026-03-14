@@ -161,6 +161,21 @@ def run() -> dict:
         for r in prior_campaigns
     }
 
+    # ── Per-campaign primary event breakdown ──────────────────────────────────
+    # For each campaign, which specific conversion actions are counted as primary
+    # (metrics.conversions), and how many? Derived from conv_breakdown_rows using
+    # the primary_conversions field (not all_conversions).
+    camp_primary_events: dict[str, dict[str, float]] = {}
+    for row in conv_breakdown_rows:
+        if row["primary_conversions"] > 0:
+            camp = row["campaign_name"]
+            action = row["conversion_action"]
+            if camp not in camp_primary_events:
+                camp_primary_events[camp] = {}
+            camp_primary_events[camp][action] = (
+                camp_primary_events[camp].get(action, 0) + row["primary_conversions"]
+            )
+
     # ── Channel type split (must run before top_campaigns pops cost_micros) ────
     channel_split: dict[str, dict] = {}
     for r in current_campaigns:
@@ -195,6 +210,13 @@ def run() -> dict:
         daily_budget                = _micros_to_inr(c.pop("daily_budget_micros", 0))
         budget_cap                  = daily_budget * window_days
         c["budget_util_pct"]        = round(c["cost"] / budget_cap * 100, 1) if budget_cap > 0 else None
+        # Sorted list of (action, count) for the primary events of this campaign
+        raw_events = camp_primary_events.get(c["campaign_name"], {})
+        c["primary_events"] = sorted(
+            [{"action": a, "count": round(v, 0)} for a, v in raw_events.items()],
+            key=lambda x: x["count"],
+            reverse=True,
+        )
 
     # ── Device split ──────────────────────────────────────────────────────────
     device_split: dict[str, dict] = {}
