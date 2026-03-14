@@ -514,14 +514,92 @@ def _section_channel_device(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _section_creatives(creative_data: dict) -> str:
+    """Render the Skill 2 creative analysis section."""
+    ads = creative_data.get("ads", [])
+    if not ads:
+        return ""
+
+    llm_enabled = creative_data.get("llm_enabled", False)
+    lines = ["## Creative Analysis — Google App Ads", ""]
+
+    if not llm_enabled:
+        lines += [
+            "*AWS creds not set — raw copy shown, no LLM analysis.*",
+            "",
+            "| Campaign | Impressions | CTR | Conv | Headlines |",
+            "|---|---|---|---|---|",
+        ]
+        for ad in ads:
+            h = " / ".join(ad["headlines"][:2]) or "*(none)*"
+            lines.append(
+                f"| {ad['campaign_name'][:40]} | {ad['impressions']:,} | {ad['ctr_pct']}% "
+                f"| {ad['conversions']:.0f} | {h} |"
+            )
+        return "\n".join(lines)
+
+    # LLM-enabled: show per-ad table + synthesis
+    lines += [
+        "### Ad Copy Breakdown",
+        "",
+        "| Campaign | Impr | CTR | Conv | Value Prop | Hook | Clarity | Top Gap |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for ad in ads:
+        a = ad.get("analysis") or {}
+        gap = (a.get("what_missing") or ["—"])[0]
+        lines.append(
+            f"| {ad['campaign_name'][:35]} "
+            f"| {ad['impressions']:,} "
+            f"| {ad['ctr_pct']}% "
+            f"| {ad['conversions']:.0f} "
+            f"| {a.get('primary_value_prop', '—')} "
+            f"| {a.get('emotional_hook', '—')} "
+            f"| {a.get('clarity_score', '—')}/5 "
+            f"| {gap} |"
+        )
+
+    # Per-ad detail
+    lines += ["", "### Per-Ad Detail", ""]
+    for i, ad in enumerate(ads):
+        a = ad.get("analysis") or {}
+        h_block  = "\n".join(f"  - {h}" for h in ad["headlines"])    or "  *(none)*"
+        d_block  = "\n".join(f"  - {d}" for d in ad["descriptions"]) or "  *(none)*"
+        sug      = a.get("suggested_headline_tests") or []
+        sug_block = "\n".join(f"  - `{s}`" for s in sug) or "  *(none)*"
+        missing   = ", ".join(a.get("what_missing") or []) or "—"
+        works     = ", ".join(a.get("what_works") or [])   or "—"
+
+        lines += [
+            f"**Ad {i+1} — {ad['campaign_name']}**  "
+            f"({ad['impressions']:,} impr | {ad['ctr_pct']}% CTR | {ad['conversions']:.0f} conv | {_inr(ad['cost'])} spend)",
+            "",
+            f"Headlines:\n{h_block}",
+            f"Descriptions:\n{d_block}",
+            f"Value prop: {a.get('primary_value_prop','—')} | Hook: {a.get('emotional_hook','—')} | Clarity: {a.get('clarity_score','—')}/5",
+            f"What works: {works}",
+            f"What's missing: {missing}",
+            f"Suggested headline tests:\n{sug_block}",
+            "",
+        ]
+
+    # Synthesis
+    synthesis = creative_data.get("synthesis")
+    if synthesis:
+        lines += ["---", "", "### Creative Strategy Synthesis", "", synthesis, ""]
+
+    return "\n".join(lines)
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-def generate(data: dict) -> str:
+def generate(data: dict, creative_data: Optional[dict] = None) -> str:
     """
     Generate the full campaign report as a Markdown string.
 
     Args:
-        data: dict returned by campaign_analysis.run()
+        data:          dict returned by campaign_analysis.run()
+        creative_data: dict returned by creative_analysis.run() (optional)
 
     Returns:
         Full report as a Markdown-formatted string.
@@ -545,4 +623,10 @@ def generate(data: dict) -> str:
         _section_channel_device(data),
         "",
     ]
+
+    if creative_data:
+        creative_section = _section_creatives(creative_data)
+        if creative_section:
+            sections += ["", "---", "", creative_section]
+
     return "\n".join(sections)
