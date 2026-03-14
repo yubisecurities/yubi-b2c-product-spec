@@ -6,7 +6,49 @@ Updated incrementally — newest entries at the top.
 
 ---
 
-## Skill 2 — Report Generator (Code Design)
+## Skill 2 — Creative Analysis (Code Design)
+
+### Decision: Analyze own Google App Ad copy with Claude (AWS Bedrock)
+**Date:** Mar 14 2026
+**Status:** ✅ Implemented
+
+**What was built:** `skills/creative_analysis.py` — `run(start_date, end_date)` fetches
+all APP_AD copy via `get_app_ad_copy()`, analyzes each ad with Claude, and synthesizes
+cross-ad insights + recommendations. Report section added to `skills/report.py`.
+
+**Why copy-only (no image analysis):**
+Google App Ad images are served from authenticated CDN URLs — fetching them requires
+OAuth headers. Deferred to a future iteration. Copy alone is sufficient for first-pass
+creative strategy because headlines/descriptions carry the core messaging signal.
+
+**Per-ad analysis (Claude, JSON output):**
+- `primary_value_prop` — what the ad is primarily selling (one phrase)
+- `emotional_hook` — aspiration / safety / returns / ease / trust / fomo / none
+- `clarity_score` — 1–5 (5 = crystal clear what the app is and why to install)
+- `what_works` — list of specific strengths
+- `what_missing` — list of specific gaps (e.g. "no yield number", "no trust signal")
+- `suggested_headline_tests` — 3 alternative headlines ≤ 30 chars
+
+**Synthesis (Claude, free-form):**
+All ads + per-ad analysis sent together. Output:
+- What high-CTR/conversion ads have in common
+- What low-CTR ads are missing
+- 5 copy angles to test (with headline + description examples)
+- Creative strategy recommendation (2-3 sentences)
+
+**Graceful degradation:**
+Gates on `AWS_ACCESS_KEY_ID`. If absent: returns raw copy data only (no analysis),
+report section shows copy table without LLM columns.
+
+**Known: APP_AD assets in GAQL use a different field path than RSA**
+- RSA: `ad_group_ad.ad.responsive_search_ad.headlines`
+- APP_AD: `ad_group_ad.ad.app_ad.headlines` — completely separate field
+- Previous `get_ad_performance()` only selected RSA fields → empty copy for all app ads
+- Fixed: both field paths now selected; parsed by `ad.type_.name` branch
+
+---
+
+## Report Generator Utility (`skills/report.py`)
 
 ### Decision: Rule-based Markdown report auto-generated from campaign data
 **Date:** Mar 14 2026
@@ -220,6 +262,8 @@ using total spend / per-action count (not per-campaign-per-action split).
 | 3 | Add `KYC_READY_FOR_TRADE` as conversion action for Smart Bidding signal | P1 | ⏳ Pending (Google Ads side) |
 | 4 | Switch primary conversion from `VERIFY_OTP_SUCCESS` → `SETUP_SECURE_PIN_SUCCESS` | P1 | ⏳ Pending (Google Ads side) |
 | 5 | Investigate PaymentSuccess -52.9% spend WoW drop | P1 | ⏳ Monitor after #3 fix |
-| 6 | Build Skill 2: rule-based report generator (`skills/report.py`) | P2 | ✅ Done (Mar 14 2026) |
-| 7 | Build Skill 2b: LLM narrative layer on top of report (AWS Bedrock / Claude) | P2 | ⏳ Pending |
+| 6 | Build report generator utility (`skills/report.py`) | P2 | ✅ Done (Mar 14 2026) |
+| 7 | Build Skill 2: creative analysis — own Google App Ad copy (`skills/creative_analysis.py`) | P2 | ✅ Done (Mar 14 2026) |
 | 8 | Build `business_context.md` for growth marketing agent LLM system prompt | P2 | ⏳ Pending |
+| 9 | Build Skill 3: competitor creative analysis via Meta Ad Library | P3 | ⏳ Pending |
+| 10 | Add image analysis to Skill 2 (authenticated CDN fetch + Claude Vision) | P3 | ⏳ Pending |
