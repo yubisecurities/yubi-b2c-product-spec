@@ -7,22 +7,30 @@ Authenticates via OAuth2 and provides methods to pull:
   - Audience & device segment breakdowns
 """
 
+from typing import Optional
+
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 import config
 
 
+_client: Optional[GoogleAdsClient] = None
+
+
 def _build_client() -> GoogleAdsClient:
-    """Build an authenticated GoogleAdsClient from environment variables."""
-    credentials = {
-        "developer_token":   config.GOOGLE_ADS_DEVELOPER_TOKEN,
-        "client_id":         config.GOOGLE_ADS_CLIENT_ID,
-        "client_secret":     config.GOOGLE_ADS_CLIENT_SECRET,
-        "refresh_token":     config.GOOGLE_ADS_REFRESH_TOKEN,
-        "login_customer_id": config.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
-        "use_proto_plus":    True,
-    }
-    return GoogleAdsClient.load_from_dict(credentials)
+    """Return a cached GoogleAdsClient, building it once from environment variables."""
+    global _client
+    if _client is None:
+        credentials = {
+            "developer_token":   config.GOOGLE_ADS_DEVELOPER_TOKEN,
+            "client_id":         config.GOOGLE_ADS_CLIENT_ID,
+            "client_secret":     config.GOOGLE_ADS_CLIENT_SECRET,
+            "refresh_token":     config.GOOGLE_ADS_REFRESH_TOKEN,
+            "login_customer_id": config.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+            "use_proto_plus":    True,
+        }
+        _client = GoogleAdsClient.load_from_dict(credentials)
+    return _client
 
 
 def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
