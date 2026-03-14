@@ -88,6 +88,23 @@ already fetched for WoW calculation).
 - `KYC_RISKDETAILS_SUBMIT` = KYC start (first risk details form submitted)
 - `KYC_READY_FOR_TRADE` = KYC complete (account activated and ready to trade)
 
+**Bank verification events (ANY ONE = verified):**
+
+The bank verification step was redesigned on **Jan 20 2026**, introducing two new verification
+methods. All 3 events are included in the Amplitude funnel definition to avoid missing any completions.
+
+| Event | Active Period | Method |
+|---|---|---|
+| `KYC_BANK_VERIFIED` | Pre-Jan 20 2026 (legacy) | Old verification method — fires rarely now, included to catch stragglers |
+| `KYC_BANK_VERIFIED_PD` | Post-Jan 20 2026 (primary) | Penny Drop — ₹1 sent to user's account to verify ownership |
+| `KYC_BANK_VERIFIED_REVERSE_PD` | Post-Jan 20 2026 (primary) | Reverse Penny Drop — user sends ₹1 to verify ownership |
+
+In Amplitude: bank verification step = `ANY(KYC_BANK_VERIFIED, KYC_BANK_VERIFIED_PD, KYC_BANK_VERIFIED_REVERSE_PD)`
+
+**Implication for external tools (Google Ads, etc.):**
+Any campaign or conversion action tracking only `KYC_BANK_VERIFIED` is blind to real bank
+verifications post-Jan 20. All 3 events must be linked to get accurate counts.
+
 **Why offset window (not rolling 7d for headline metrics):**
 KYC completion is a lagged conversion — users typically complete it days after signup, not in the
 same session. Using the same 7-day window for both signups and KYC completions would mix cohorts:
@@ -536,5 +553,5 @@ ad-hoc runs or testing.
 | 3 | ~~OTP "new users only" via API~~ | ✅ Resolved — `EMAIL_PAGE_VIEW` matches first-time OTP at 99.5% and is accessible via API. Used as denominator for `New%` column. See EMAIL_PAGE_VIEW section above. |
 | 4 | City/geography breakdown | Business context says Metro + Tier-1 is target; could add city-level breakdown if Amplitude has geo data |
 | 5 | ~~SSO adoption 30-day tracker~~ | ✅ Resolved — `SSO_LAUNCH_DATE = date(2026, 3, 6)` in config.py; days since launch and days remaining auto-computed in alerts/wins |
-| 6 | Step-level KYC health monitoring | Flag if any individual KYC step's conversion drops >X% WoW. Requires events for each intermediate step (9 steps in V2 funnel). Options: Funnel API (current period, no `n` param) or Segmentation per step with WoW. Decision pending. |
+| 6 | Step-level KYC health monitoring | Flag if any individual KYC step's conversion drops >X% WoW. Requires events for each intermediate step (9 steps in V2 funnel). Known events so far: `KYC_ADDRESS_VERIFIED`, `KYC_WET_SIGNATURE_VERIFIED`, `KYC_DEMAT_VERIFIED`, bank verification = ANY(KYC_BANK_VERIFIED, KYC_BANK_VERIFIED_PD, KYC_BANK_VERIFIED_REVERSE_PD). Options: Funnel API (current period, no `n` param) or Segmentation per step with WoW. Decision pending. |
 | 7 | AWS Bedrock credentials for detailed LLM report | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` not yet added to GitHub Actions secrets. Detailed report currently runs Block Kit fallback. Add when IAM access is available. |
