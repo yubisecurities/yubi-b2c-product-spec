@@ -35,7 +35,7 @@ if missing:
     print("Need a refresh token? Run: python scripts/generate_refresh_token.py")
     sys.exit(1)
 
-from skills import campaign_analysis
+from skills import campaign_analysis, report
 
 
 def main():
@@ -104,10 +104,18 @@ def main():
     # Save raw data to exports/
     os.makedirs("../exports", exist_ok=True)
     from datetime import date
-    out_path = f"../exports/campaign_data_{date.today().isoformat()}.json"
+    today = date.today().isoformat()
+    out_path = f"../exports/campaign_data_{today}.json"
     with open(out_path, "w") as f:
         json.dump(data, f, indent=2, default=str)
     print(f"\n[agent] Raw data saved to {out_path}")
+
+    # Generate and save the full formatted report
+    report_md = report.generate(data)
+    report_path = f"../exports/campaign_report_{today}.md"
+    with open(report_path, "w") as f:
+        f.write(report_md)
+    print(f"[agent] Full report saved to {report_path}")
 
     print("\n[agent] Run complete.")
 
