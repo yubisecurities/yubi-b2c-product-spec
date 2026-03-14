@@ -3,7 +3,7 @@
 **Project:** Aspero B2C Mobile - Bond Investment Platform
 **Amplitude Project ID:** 506002
 **Last Updated:** 2026-03-09
-**Status:** ✅ Complete Signup Funnel Events Documented
+**Status:** ✅ Complete Signup Funnel + KYC Funnel Documented
 
 ---
 
@@ -26,17 +26,71 @@ SIGNUP FUNNEL - COMPLETE
 │   ├── EMAIL_VERIFY_OTP_PAGE_VIEW (Once)
 │   ├── EMAIL_VERIFY_OTP_ENTERED (Once)
 │   └── EMAIL_VERIFY_OTP_SUCCESS (Once - Signup only)
+│   [OR Google SSO path:]
+│   ├── GOOGLE_VERIFY_CLICK (Once)
+│   ├── GOOGLE_VERIFY_SUCCESS (Once)
+│   └── SSO_VERIFICATION_SUCCESS (Once - Signup only, SSO path)
 │
 └── Stage 3: Secure PIN Setup
     ├── SETUP_SECURE_PIN_PAGE_VIEW (Once)
     ├── SETUP_SECURE_PIN_SUBMIT_CLICK (Once)
     └── SETUP_SECURE_PIN_SUCCESS (Once - USER REGISTERED!)
 
+KYC FUNNEL - DOCUMENTED (V2 as of Mar 10 2026)
+├── KYC_RISKDETAILS_SUBMIT          ← KYC START (risk details form submitted)
+├── ... [PAN/Aadhaar, Liveness steps]
+├── KYC_WET_SIGNATURE_VERIFIED      ← Wet signature (added in V2, between Liveness and eSign)
+├── ... [eSign step]
+├── KYC_ADDRESS_VERIFIED            ← Address verification complete
+├── Bank Verification (3-event sequence):
+│   ├── KYC_BANK_PAGE_VIEW          ← User lands on bank details screen
+│   ├── BANK_ACCOUNT_SAVE_AND_SUBMIT ← User submits bank details (penny drop initiated)
+│   └── KYC_BANK_VERIFIED           ← Penny drop successful, bank account verified
+├── KYC_DEMAT_VERIFIED              ← Demat account verified (moved to step 8 in V2)
+└── KYC_READY_FOR_TRADE             ← KYC COMPLETE (account activated, ready to trade)
+
 🔄 PENDING:
-├── KYC_FUNNEL (To be shared)
 ├── INVESTMENT_FUNNEL (To be shared)
 └── OTHER_FUNNELS (To be shared)
 ```
+
+---
+
+## 📋 KYC FUNNEL - ALL EVENTS (V2 — as of Mar 10 2026)
+
+> **KYC funnel has 9 steps in V2** (was 8 before Mar 10 2026; wet signature step added).
+> KYC is a **lagged conversion** — users typically complete it days after signup.
+> Use offset window cohort for KYC metrics (see funnel-optimization-agent DESIGN_DECISIONS.md).
+
+### **KYC Funnel: Start & Completion (Headline Metrics)**
+
+| Event | Type | Description |
+|---|---|---|
+| **KYC_RISKDETAILS_SUBMIT** | ✅ KYC Start | First KYC step — risk details form submitted. ~71% of signups start KYC. |
+| **KYC_READY_FOR_TRADE** | ✅ KYC Complete | Final step — account activated, user can invest. ~58% of KYC starters complete. |
+
+### **Bank Verification Sub-Funnel (3-Event Sequence)**
+
+> ⚠️ Bank verification = combination of 3 events. All 3 must be tracked to understand drop-off.
+
+| # | Event | Type | Description |
+|---|---|---|---|
+| 1 | **KYC_BANK_PAGE_VIEW** | Page View | User lands on bank account details screen |
+| 2 | **BANK_ACCOUNT_SAVE_AND_SUBMIT** | User Action | User submits bank details; penny drop API initiated |
+| 3 | **KYC_BANK_VERIFIED** | ✅ Success | Penny drop successful — bank account verified |
+
+**Critical note for Google Ads:** If `KYC_BANK_VERIFIED` shows very few events while
+`BANK_ACCOUNT_SAVE_AND_SUBMIT` shows many, this signals an **instrumentation gap** (event not
+firing in app after penny drop success), NOT necessarily a drop-off in user behavior.
+Always check all 3 events together before drawing conclusions.
+
+### **Other KYC Step Events**
+
+| Event | Description |
+|---|---|
+| **KYC_ADDRESS_VERIFIED** | Address verification complete (step before bank in V2 flow) |
+| **KYC_WET_SIGNATURE_VERIFIED** | Wet signature step (added in V2, between Liveness and eSign) |
+| **KYC_DEMAT_VERIFIED** | Demat account verified (moved to step 8 in V2, was step 5 in V1) |
 
 ---
 
@@ -277,7 +331,8 @@ END: User account active
 🔄 **To be collected:**
 
 - [ ] **Actual funnel numbers** (user counts per event)
-- [ ] **KYC Funnel events** (KYC_STARTED → KYC_COMPLETED)
+- [x] **KYC Funnel events** — KYC_RISKDETAILS_SUBMIT → KYC_READY_FOR_TRADE + bank 3-event sub-funnel ✅
+- [ ] **KYC intermediate step events** (9 steps in V2, only start+complete+bank currently documented)
 - [ ] **Investment Funnel events** (INVESTMENT_INITIATED → COMPLETED)
 - [ ] **Other Funnels** (Payment, Withdrawal, etc.)
 - [ ] **Custom event properties** (retry_count, time_taken, etc.)
@@ -293,7 +348,7 @@ END: User account active
 | 2026-03-09 | API troubleshooting completed | ✅ |
 | 2026-03-09 | Complete event documentation | ✅ |
 | PENDING | Add funnel numbers/metrics | 🔄 |
-| PENDING | Add KYC Funnel | 🔄 |
+| 2026-03-14 | Added KYC funnel — start/complete + bank 3-event sub-funnel + SSO events | ✅ |
 | PENDING | Add Investment Funnel | 🔄 |
 
 ---
@@ -301,15 +356,22 @@ END: User account active
 ## ✅ SUMMARY
 
 **Complete Signup Funnel Documented:**
-- ✅ 19 events identified
+- ✅ 19 signup events identified
 - ✅ Quality ratings assigned
-- ✅ Event flow documented
+- ✅ SSO path (4 events) documented alongside OTP path (6 events)
 - ✅ Platform-specific data noted
 - ✅ One-time vs repeatable classified
+
+**KYC Funnel Documented (V2):**
+- ✅ KYC start event: KYC_RISKDETAILS_SUBMIT
+- ✅ KYC complete event: KYC_READY_FOR_TRADE
+- ✅ Bank verification 3-event sub-funnel: KYC_BANK_PAGE_VIEW → BANK_ACCOUNT_SAVE_AND_SUBMIT → KYC_BANK_VERIFIED
+- ✅ Address + wet signature + demat events noted
+- 🔄 9 intermediate KYC steps not yet fully enumerated
 
 **Next Steps:**
 1. 📊 Export funnel numbers from Amplitude
 2. 🎯 Add actual user counts per event
-3. 📈 Create KYC Funnel documentation
-4. 💰 Create Investment Funnel documentation
+3. 💰 Create Investment Funnel documentation
+4. 🏥 Enumerate all 9 KYC V2 intermediate step events
 
