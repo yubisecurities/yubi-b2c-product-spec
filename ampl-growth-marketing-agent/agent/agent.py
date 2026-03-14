@@ -65,13 +65,15 @@ def main():
     print(f"ROAS:                  {cw['roas']}x  ({_fmt_pct(wow['roas_pct'])} WoW)")
 
     print("\n── Top Campaigns by Spend ────────────────────────────────────────────────")
-    print(f"  {'Campaign':<40}  {'Spend':>12}  {'Spend WoW':>10}  {'CTR':>6}  {'In-App Actions':>14}  {'Actions WoW':>11}  {'Cost/Action':>11}")
-    print(f"  {'-'*40}  {'-'*12}  {'-'*10}  {'-'*6}  {'-'*14}  {'-'*11}  {'-'*11}")
+    print(f"  {'Campaign':<40}  {'Spend':>12}  {'Spend WoW':>10}  {'Budget':>7}  {'CTR':>6}  {'In-App Actions':>14}  {'Actions WoW':>11}  {'Cost/Action':>11}")
+    print(f"  {'-'*40}  {'-'*12}  {'-'*10}  {'-'*7}  {'-'*6}  {'-'*14}  {'-'*11}  {'-'*11}")
     for c in data["top_campaigns"]:
         cpa         = f"₹{c['cost_per_in_app_action']:,.0f}" if c['in_app_actions'] > 0 else "—"
         spend_wow   = _fmt_pct(c.get("spend_wow_pct"))
         actions_wow = _fmt_pct(c.get("in_app_actions_wow_pct"))
-        print(f"  {c['campaign_name'][:40]:<40}  ₹{c['cost']:>10,}  {spend_wow:>10}  {c['ctr_pct']:>5}%  {c['in_app_actions']:>14,.0f}  {actions_wow:>11}  {cpa:>11}")
+        util        = c.get("budget_util_pct")
+        budget_str  = f"{util:.0f}%{'!' if util and util >= 90 else ' '}" if util is not None else "n/a"
+        print(f"  {c['campaign_name'][:40]:<40}  ₹{c['cost']:>10,}  {spend_wow:>10}  {budget_str:>7}  {c['ctr_pct']:>5}%  {c['in_app_actions']:>14,.0f}  {actions_wow:>11}  {cpa:>11}")
 
     print("\n── In-App Actions Breakdown (all tracked events) ─────────────")
     print(f"  Total spend ₹{cw['cost']:,} across {data['total_all_conversions']:,.0f} total in-app events")

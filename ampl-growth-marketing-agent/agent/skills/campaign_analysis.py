@@ -5,6 +5,7 @@ Fetches current + prior week data from Google Ads, computes WoW deltas,
 and returns a structured summary ready for LLM analysis or Slack posting.
 """
 
+from datetime import date
 from typing import Optional
 from connectors.google_ads import (
     get_campaign_performance,
@@ -71,6 +72,7 @@ def run() -> dict:
     current_end   = config.CURRENT_END.isoformat()
     prior_start   = config.PRIOR_START.isoformat()
     prior_end     = config.PRIOR_END.isoformat()
+    window_days   = (config.CURRENT_END - config.CURRENT_START).days + 1
 
     print(f"[campaign_analysis] Fetching current week: {current_start} → {current_end}")
     current_campaigns = get_campaign_performance(current_start, current_end)
@@ -196,6 +198,9 @@ def run() -> dict:
         c["ctr_pct"]                = round(c["ctr"] * 100, 2)
         c["spend_wow_pct"]          = _pct_change(c["cost"], prior_spend)
         c["in_app_actions_wow_pct"] = _pct_change(all_conv, prior_all_conv)
+        daily_budget                = _micros_to_inr(c.pop("daily_budget_micros", 0))
+        budget_cap                  = daily_budget * window_days
+        c["budget_util_pct"]        = round(c["cost"] / budget_cap * 100, 1) if budget_cap > 0 else None
 
     # ── Device split ──────────────────────────────────────────────────────────
     device_split: dict[str, dict] = {}

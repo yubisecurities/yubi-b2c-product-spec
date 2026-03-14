@@ -39,8 +39,9 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
             "campaign_id":     str,
             "campaign_name":   str,
             "status":          str,
-            "channel_type":    str,   # SEARCH, DISPLAY, VIDEO, MULTI_CHANNEL (APP)
-            "impressions":     int,
+            "channel_type":        str,   # SEARCH, DISPLAY, VIDEO, MULTI_CHANNEL (APP)
+            "daily_budget_micros": int,   # campaign daily budget cap
+            "impressions":         int,
             "clicks":          int,
             "cost_micros":     int,   # divide by 1_000_000 to get actual spend
             "conversions":     float,
@@ -59,6 +60,7 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
             campaign.name,
             campaign.status,
             campaign.advertising_channel_type,
+            campaign_budget.amount_micros,
             metrics.impressions,
             metrics.clicks,
             metrics.cost_micros,
@@ -84,6 +86,7 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
                 "campaign_name":              c.name,
                 "status":                     c.status.name,
                 "channel_type":               c.advertising_channel_type.name,
+                "daily_budget_micros":        row.campaign_budget.amount_micros,
                 "impressions":                m.impressions,
                 "clicks":                     m.clicks,
                 "cost_micros":                m.cost_micros,
