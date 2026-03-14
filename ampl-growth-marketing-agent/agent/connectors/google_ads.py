@@ -234,12 +234,13 @@ def get_geo_segments(start_date: str, end_date: str) -> list[dict]:
     Returns:
         List of dicts:
         {
-            "campaign_name":   str,
-            "country_code":    str,
-            "impressions":     int,
-            "clicks":          int,
-            "cost_micros":     int,
-            "conversions":     float,
+            "campaign_name":        str,
+            "country_criterion_id": int,
+            "country_name":         str,   # human-readable, e.g. "India"
+            "impressions":          int,
+            "clicks":               int,
+            "cost_micros":          int,
+            "conversions":          float,
         }
     """
     client = _build_client()
@@ -250,6 +251,7 @@ def get_geo_segments(start_date: str, end_date: str) -> list[dict]:
         SELECT
             campaign.name,
             geographic_view.country_criterion_id,
+            geo_target_constant.name,
             metrics.impressions,
             metrics.clicks,
             metrics.cost_micros,
@@ -266,12 +268,13 @@ def get_geo_segments(start_date: str, end_date: str) -> list[dict]:
         for row in response:
             m = row.metrics
             rows.append({
-                "campaign_name":         row.campaign.name,
-                "country_criterion_id":  row.geographic_view.country_criterion_id,
-                "impressions":           m.impressions,
-                "clicks":                m.clicks,
-                "cost_micros":           m.cost_micros,
-                "conversions":           m.conversions,
+                "campaign_name":        row.campaign.name,
+                "country_criterion_id": row.geographic_view.country_criterion_id,
+                "country_name":         row.geo_target_constant.name,
+                "impressions":          m.impressions,
+                "clicks":               m.clicks,
+                "cost_micros":          m.cost_micros,
+                "conversions":          m.conversions,
             })
     except GoogleAdsException as ex:
         _handle_error(ex)
