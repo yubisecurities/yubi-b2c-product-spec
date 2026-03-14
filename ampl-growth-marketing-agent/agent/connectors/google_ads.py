@@ -134,7 +134,7 @@ def get_campaign_performance(start_date: str, end_date: str) -> list[dict]:
 def get_ad_performance(start_date: str, end_date: str) -> list[dict]:
     """
     Fetch ad-level performance for creative analysis.
-    Pulls responsive search ads with their top headlines/descriptions.
+    Handles both APP_AD (MULTI_CHANNEL) and RESPONSIVE_SEARCH_AD types.
 
     Returns:
         List of dicts, one per ad:
@@ -148,8 +148,8 @@ def get_ad_performance(start_date: str, end_date: str) -> list[dict]:
             "cost_micros":    int,
             "conversions":    float,
             "ctr":            float,
-            "headlines":      list[str],  # RSA headlines (up to 15)
-            "descriptions":   list[str],  # RSA descriptions (up to 4)
+            "headlines":      list[str],  # up to 5 for APP_AD, up to 15 for RSA
+            "descriptions":   list[str],  # up to 5 for APP_AD, up to 4 for RSA
         }
     """
     client = _build_client()
@@ -162,6 +162,8 @@ def get_ad_performance(start_date: str, end_date: str) -> list[dict]:
             ad_group.name,
             ad_group_ad.ad.id,
             ad_group_ad.ad.type,
+            ad_group_ad.ad.app_ad.headlines,
+            ad_group_ad.ad.app_ad.descriptions,
             ad_group_ad.ad.responsive_search_ad.headlines,
             ad_group_ad.ad.responsive_search_ad.descriptions,
             metrics.impressions,
@@ -186,7 +188,10 @@ def get_ad_performance(start_date: str, end_date: str) -> list[dict]:
 
             headlines    = []
             descriptions = []
-            if ad.type_.name == "RESPONSIVE_SEARCH_AD":
+            if ad.type_.name == "APP_AD":
+                headlines    = [h.text for h in ad.app_ad.headlines    if h.text]
+                descriptions = [d.text for d in ad.app_ad.descriptions if d.text]
+            elif ad.type_.name == "RESPONSIVE_SEARCH_AD":
                 rsa = ad.responsive_search_ad
                 headlines    = [h.text for h in rsa.headlines]
                 descriptions = [d.text for d in rsa.descriptions]
@@ -203,6 +208,75 @@ def get_ad_performance(start_date: str, end_date: str) -> list[dict]:
                 "ctr":           m.ctr,
                 "headlines":     headlines,
                 "descriptions":  descriptions,
+            })
+    except GoogleAdsException as ex:
+        _handle_error(ex)
+
+    return rows
+
+
+def get_app_ad_copy(start_date: str, end_date: str) -> list[dict]:
+    """
+    Fetch full copy for all APP_AD creatives — used by Skill 2 (creative analysis).
+    Filters to APP_AD type only and returns all text assets per ad.
+
+    Returns:
+        List of dicts, one per ad sorted by spend desc:
+        {
+            "campaign_name":  str,
+            "ad_group_name":  str,
+            "ad_id":          str,
+            "impressions":    int,
+            "clicks":         int,
+            "cost":           float,   # INR
+            "conversions":    float,
+            "ctr_pct":        float,   # 0–100
+            "headlines":      list[str],
+            "descriptions":   list[str],
+        }
+    """
+    client = _build_client()
+    ga_service = client.get_service("GoogleAdsService")
+    customer_id = config.GOOGLE_ADS_CUSTOMER_ID
+
+    query = f"""
+        SELECT
+            campaign.name,
+            ad_group.name,
+            ad_group_ad.ad.id,
+            ad_group_ad.ad.app_ad.headlines,
+            ad_group_ad.ad.app_ad.descriptions,
+            metrics.impressions,
+            metrics.clicks,
+            metrics.cost_micros,
+            metrics.conversions,
+            metrics.ctr
+        FROM ad_group_ad
+        WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
+          AND ad_group_ad.ad.type = 'APP_AD'
+          AND ad_group_ad.status != 'REMOVED'
+          AND metrics.impressions > 0
+        ORDER BY metrics.cost_micros DESC
+        LIMIT 20
+    """
+
+    rows = []
+    try:
+        response = ga_service.search(customer_id=customer_id, query=query)
+        for row in response:
+            ad = row.ad_group_ad.ad
+            m  = row.metrics
+            rows.append({
+                "campaign_name": row.campaign.name,
+                "ad_group_name": row.ad_group.name,
+                "ad_id":         str(ad.id),
+                "impressions":   m.impressions,
+                "clicks":        m.clicks,
+                "cost":          round(m.cost_micros / 1_000_000, 2),
+                "conversions":   m.conversions,
+                "ctr_pct":       round(m.ctr * 100, 2),
+                "headlines":     [h.text for h in ad.app_ad.headlines    if h.text],
+                "descriptions":  [d.text for d in ad.app_ad.descriptions if d.text],
             })
     except GoogleAdsException as ex:
         _handle_error(ex)
