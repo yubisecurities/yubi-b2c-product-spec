@@ -87,21 +87,25 @@ def run() -> dict:
     print("[campaign_analysis] Fetching geo segments...")
     geo_rows = get_geo_segments(current_start, current_end)
 
-    print("[campaign_analysis] Fetching conversion action breakdown...")
+    print("[campaign_analysis] Fetching conversion action breakdown (current week)...")
     conv_breakdown_rows = get_conversion_breakdown(current_start, current_end)
+
+    print("[campaign_analysis] Fetching conversion action breakdown (prior week)...")
+    prior_conv_breakdown_rows = get_conversion_breakdown(prior_start, prior_end)
 
     # ── Aggregates ────────────────────────────────────────────────────────────
     current_totals = _aggregate_campaigns(current_campaigns)
     prior_totals   = _aggregate_campaigns(prior_campaigns)
 
     wow = {
-        "impressions_pct":           _pct_change(current_totals["impressions"],           prior_totals["impressions"]),
-        "clicks_pct":                _pct_change(current_totals["clicks"],                prior_totals["clicks"]),
-        "cost_pct":                  _pct_change(current_totals["cost"],                  prior_totals["cost"]),
-        "in_app_actions_pct":        _pct_change(current_totals["in_app_actions"],        prior_totals["in_app_actions"]),
-        "cost_per_in_app_action_pct":_pct_change(current_totals["cost_per_in_app_action"],prior_totals["cost_per_in_app_action"]),
-        "roas_pct":                  _pct_change(current_totals["roas"],                  prior_totals["roas"]),
-        "ctr_pct":                   _pct_change(current_totals["ctr"],                   prior_totals["ctr"]),
+        "impressions_pct":           _pct_change(current_totals["impressions"], prior_totals["impressions"]),
+        "clicks_pct":                _pct_change(current_totals["clicks"],      prior_totals["clicks"]),
+        "cost_pct":                  _pct_change(current_totals["cost"],        prior_totals["cost"]),
+        "roas_pct":                  _pct_change(current_totals["roas"],        prior_totals["roas"]),
+        "ctr_pct":                   _pct_change(current_totals["ctr"],         prior_totals["ctr"]),
+        # in_app_actions WoW filled in below after all_conversions totals are ready
+        "in_app_actions_pct":        None,
+        "cost_per_in_app_action_pct": None,
     }
 
     # ── In-app action totals (all_conversions across all actions) ─────────────
@@ -111,7 +115,25 @@ def run() -> dict:
         action_totals[action] = action_totals.get(action, 0) + row["all_conversions"]
 
     total_all_conversions = sum(action_totals.values())
+
+    prior_action_totals: dict[str, float] = {}
+    for row in prior_conv_breakdown_rows:
+        action = row["conversion_action"]
+        prior_action_totals[action] = prior_action_totals.get(action, 0) + row["all_conversions"]
+
+    prior_total_all_conversions = sum(prior_action_totals.values())
+
     total_cost = current_totals["cost"]
+
+    # Override the primary-only values in current_totals with all_conversions-based ones
+    current_cpa = round(total_cost / total_all_conversions, 2) if total_all_conversions else 0
+    current_totals["in_app_actions"]         = total_all_conversions
+    current_totals["cost_per_in_app_action"] = current_cpa
+
+    # WoW for in_app_actions and CPA — also all_conversions-based
+    prior_cpa = round(prior_totals["cost"] / prior_total_all_conversions, 2) if prior_total_all_conversions else 0
+    wow["in_app_actions_pct"]         = _pct_change(total_all_conversions, prior_total_all_conversions)
+    wow["cost_per_in_app_action_pct"] = _pct_change(current_cpa, prior_cpa)
     cost_per_action_breakdown = {
         action: round(total_cost / count, 2) if count > 0 else 0
         for action, count in action_totals.items()
