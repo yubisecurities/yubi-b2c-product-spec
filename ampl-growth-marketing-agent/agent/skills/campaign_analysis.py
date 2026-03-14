@@ -131,14 +131,23 @@ def run() -> dict:
         reverse=True,
     )[:20]
 
+    # ── Per-campaign all_conversions lookup (from breakdown rows) ────────────
+    campaign_all_conversions: dict[str, float] = {}
+    for row in conv_breakdown_rows:
+        name = row["campaign_name"]
+        campaign_all_conversions[name] = campaign_all_conversions.get(name, 0) + row["all_conversions"]
+
     # ── Top campaigns by spend ────────────────────────────────────────────────
     top_campaigns = sorted(current_campaigns, key=lambda r: r["cost_micros"], reverse=True)[:5]
     for c in top_campaigns:
-        c["cost"]                  = _micros_to_inr(c.pop("cost_micros"))
-        c["avg_cpc"]               = _micros_to_inr(c.pop("avg_cpc_micros"))
-        c["cost_per_in_app_action"]= _micros_to_inr(c.pop("cost_per_conversion_micros"))
-        c["in_app_actions"]        = c.pop("conversions")
-        c["ctr_pct"]               = round(c["ctr"] * 100, 2)
+        c["cost"]    = _micros_to_inr(c.pop("cost_micros"))
+        c["avg_cpc"] = _micros_to_inr(c.pop("avg_cpc_micros"))
+        c.pop("cost_per_conversion_micros")   # was primary-only; replaced below
+        c.pop("conversions")                  # was primary-only; replaced below
+        all_conv                    = campaign_all_conversions.get(c["campaign_name"], 0)
+        c["in_app_actions"]         = round(all_conv, 0)
+        c["cost_per_in_app_action"] = round(c["cost"] / all_conv, 2) if all_conv > 0 else 0
+        c["ctr_pct"]                = round(c["ctr"] * 100, 2)
 
     # ── Device split ──────────────────────────────────────────────────────────
     device_split: dict[str, dict] = {}
