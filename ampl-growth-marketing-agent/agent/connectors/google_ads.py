@@ -13,6 +13,27 @@ from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 import config
 
+# Criterion ID → country name for the most common markets.
+# Full list: https://developers.google.com/google-ads/api/reference/data/geotargets
+_GEO_NAMES: dict[int, str] = {
+    2356: "India",
+    2840: "United States",
+    2826: "United Kingdom",
+    2036: "Australia",
+    2124: "Canada",
+    2276: "Germany",
+    2250: "France",
+    2792: "United Arab Emirates",
+    2702: "Singapore",
+    2458: "Malaysia",
+    2764: "Thailand",
+    2360: "Indonesia",
+    2356: "India",
+    2586: "Pakistan",
+    2050: "Bangladesh",
+    2144: "Sri Lanka",
+    2524: "Nepal",
+}
 
 _client: Optional[GoogleAdsClient] = None
 
@@ -265,7 +286,6 @@ def get_geo_segments(start_date: str, end_date: str) -> list[dict]:
         SELECT
             campaign.name,
             geographic_view.country_criterion_id,
-            geo_target_constant.name,
             metrics.impressions,
             metrics.clicks,
             metrics.cost_micros,
@@ -280,11 +300,12 @@ def get_geo_segments(start_date: str, end_date: str) -> list[dict]:
     try:
         response = ga_service.search(customer_id=customer_id, query=query)
         for row in response:
-            m = row.metrics
+            m          = row.metrics
+            crit_id    = row.geographic_view.country_criterion_id
             rows.append({
                 "campaign_name":        row.campaign.name,
-                "country_criterion_id": row.geographic_view.country_criterion_id,
-                "country_name":         row.geo_target_constant.name,
+                "country_criterion_id": crit_id,
+                "country_name":         _GEO_NAMES.get(crit_id, str(crit_id)),
                 "impressions":          m.impressions,
                 "clicks":               m.clicks,
                 "cost_micros":          m.cost_micros,
