@@ -296,5 +296,8 @@ using total spend / per-action count (not per-campaign-per-action split).
 | 6 | Build report generator utility (`skills/report.py`) | P2 | ✅ Done (Mar 14 2026) |
 | 7 | Build Skill 2: creative analysis — own Google App Ad copy (`skills/creative_analysis.py`) | P2 | ✅ Done (Mar 14 2026) |
 | 8 | Build `business_context.md` for growth marketing agent LLM system prompt | P2 | ⏳ Pending |
-| 9 | Build Skill 3: competitor creative analysis via Meta Ad Library | P3 | ⏳ Pending |
+| 9 | Build Skill 3: competitor creative analysis via Meta Ad Library | P2 | ⏳ Next to build |
 | 10 | Add image analysis to Skill 2 (authenticated CDN fetch + Claude Vision) | P3 | ⏳ Pending |
+| 11 | Build Skill 4: Slack delivery — post weekly report to Slack channel | P2 | ⏳ Pending |
+| 12 | Document creative analysis 6-section format (`docs/CREATIVE_ANALYSIS_FORMAT.md`) | P2 | ✅ Done (Mar 14 2026) |
+| 13 | First live creative analysis — fetched real APP_AD copy, identified CTR gap root cause | P2 | ✅ Done (Mar 14 2026) |
