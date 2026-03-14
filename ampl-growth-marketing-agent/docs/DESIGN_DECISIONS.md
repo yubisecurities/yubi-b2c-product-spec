@@ -6,6 +6,37 @@ Updated incrementally — newest entries at the top.
 
 ---
 
+## Creative Analysis Report Format
+
+### Decision: Standardised 6-section format for weekly creative reviews
+**Date:** Mar 14 2026
+**Status:** ✅ Documented — see `docs/CREATIVE_ANALYSIS_FORMAT.md`
+
+**6 sections (in order):**
+1. **Raw Copy Table** — all ads, impressions, CTR, full headlines + descriptions
+2. **Key Finding** — single lead insight, always data-anchored (CTR gap, spend concentration, etc.)
+3. **Per-Ad Analysis** — `Clarity: X/5`, primary value prop, emotional hook, what works, what's missing
+4. **Cross-Ad Pattern Analysis** — numbered findings: repeated headlines, description quality, trust signal usage, duplicate creatives, missing angles
+5. **5 Copy Angles to Test** — each currently absent/underused; format: angle name, 3 headlines ≤30 chars, 1 description ≤90 chars
+6. **Priority Fixes** — P0 = this week, numbered, specific (which headline to replace + 2-3 options)
+
+**First live analysis (Mar 7–13 2026) key findings:**
+- `"Earn 9-15% Fixed Returns Today"` is the single headline driving BankVerified's CTR premium (2.70–2.80% vs 1.73% for PaymentSuccess Ad 1 which has zero yield number)
+- `"Explore Bonds on Aspero"` — highest-impression headline in the account, worst performing (passive, no benefit)
+- BankVerified Ad 3 (highest CTR 2.80%) wins on `"Invest Smart"` + strong descriptions, not yield headline — aspiration beats security framing
+- PaymentSuccess has single-creative dependency: Ad 1 = 91.9% of campaign impressions
+- Ads 2 and 5 (BankVerified) are near-duplicate creatives — wasted learning slot
+- `"zero defaults since inception"` is in all descriptions but never tested as a headline
+
+**Weekly analysis checklist (before writing):**
+- Are any two ads running identical copy? (duplicate waste)
+- Which headline appears in all ads? (table stakes vs differentiator)
+- Is there a yield number in PaymentSuccess? (historically absent — flag every time)
+- CTR spread > 0.5% = meaningful copy signal worth explaining
+- Did any new creative launch this week?
+
+---
+
 ## Skill 2 — Creative Analysis (Code Design)
 
 ### Decision: Analyze own Google App Ad copy with Claude (AWS Bedrock)
